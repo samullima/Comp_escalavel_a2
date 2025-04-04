@@ -1,10 +1,7 @@
-<<<<<<< HEAD
-=======
 # Created by https://www.toptal.com/developers/gitignore/api/c++,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=c++,visualstudiocode
 
 ### C++ ###
->>>>>>> ccf0032cf9b1405606957f334e40aec8e3645883
 # Prerequisites
 *.d
 
