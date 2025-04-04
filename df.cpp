@@ -13,8 +13,6 @@ using namespace std;
 // Tipo possível das variáveis
 using ElementType = variant<int, float, bool, string>; 
 
-// TODO : adicionar mecanismos de concorrência básicos
-
 // Construtor
 DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
 {
@@ -22,6 +20,8 @@ DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& co
     Esse construtor faz a base do DataFrame com base em um vetor de nome das colunas
     e o um vetor com seus respectivos tipos.
     */
+
+    lock_guard<mutex> lock(mutexDF);
 
     if (colNamesRef.size() != colTypesRef.size()){
         cerr << "Número de elementos entre os vetores incompatível" << endl; 
@@ -45,7 +45,8 @@ DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& co
 // Destrutor
 DataFrame::~DataFrame()
 {
-    // lock()
+    lock_guard<mutex> lock(mutexDF);
+
     columns.clear();
     colNames.clear();
     idxColumns.clear();
@@ -53,21 +54,24 @@ DataFrame::~DataFrame()
 
     numCols = 0;
     numRecords = 0;
-    // unlock()
 }
 
 
 void DataFrame::addColumn(const vector<ElementType>& col, string colName, string colType)
 {
+    lock_guard<mutex> lock(mutexDF);
+
     if (numRecords != col.size()){
         cerr << "Número de registros imcompatível" << endl;
     }
 
     // Se a coluna já existe, atualizamos ela
     if (colTypes.find(colName) != colTypes.end() && colTypes[colName] == colType){
-        // Dar lock no df
         // Atualização da coluna existente
-        columns[idxColumns[colName]] = col;
+        int idx = idxColumns[colName];
+        //lock_guard<mutex> colLock(columnMutexes[idx]);
+        columns[idx] = col;
+        return;
     }
     
     // Atualização dos metadados
@@ -76,16 +80,18 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
     idxColumns[colName] = numCols-1;  
     colTypes[colName] = colType;
     columns.push_back(col);
-    // Dar unlock no DF
 }
 
 
 void DataFrame::addRecord(const vector<string>& record) {
+    lock_guard<mutex> lock(mutexDF);
+
     if (record.size() != numCols) {
         throw invalid_argument("O número de valores no registro deve ser igual ao número de colunas.");
     }
 
     for (size_t i = 0; i < record.size(); i++) {
+        // lock_guard<mutex> colLock(columnMutexes[i]); 
         const string& type = colTypes[colNames[i]];
         const string& value = record[i];
 
@@ -112,40 +118,40 @@ void DataFrame::addRecord(const vector<string>& record) {
 }
 
 
-DataFrame DataFrame::getRecords(const vector<int>& indexes)
-{
-    int qtdIndices = indexes.size();
+// DataFrame DataFrame::getRecords(const vector<int>& indexes)
+// {
+//     int qtdIndices = indexes.size();
 
-    // Novo DataFrame 
-    DataFrame dfResult(colNames, vector<string>(colNames.size()));
-    for (int i = 0; i < colNames.size(); i++) {
-        dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
-        dfResult.idxColumns[colNames[i]] = i;
-    }
+//     // Novo DataFrame 
+//     DataFrame dfResult(colNames, vector<string>(colNames.size()));
+//     for (int i = 0; i < colNames.size(); i++) {
+//         dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
+//         dfResult.idxColumns[colNames[i]] = i;
+//     }
 
-    dfResult.numCols = numCols;
-    dfResult.numRecords = qtdIndices;
-    dfResult.columns.resize(numCols); 
+//     dfResult.numCols = numCols;
+//     dfResult.numRecords = qtdIndices;
+//     dfResult.columns.resize(numCols); 
 
-    // Aqui entraria o lock, se estivermos usando concorrência
-    // mutex.lock();
+//     // Aqui entraria o lock, se estivermos usando concorrência
+//     // mutex.lock();
 
-    // Copia os dados das linhas selecionadas
-    for (int idx : indexes) {
-        if (idx < 0 || idx >= numRecords) {
-            cerr << "Índice fora dos limites: " << idx << endl;
-            continue;
-        }
+//     // Copia os dados das linhas selecionadas
+//     for (int idx : indexes) {
+//         if (idx < 0 || idx >= numRecords) {
+//             cerr << "Índice fora dos limites: " << idx << endl;
+//             continue;
+//         }
 
-        for (int j = 0; j < numCols; j++) {
-            dfResult.columns[j].push_back(columns[j][idx]);
-        }
-    }
+//         for (int j = 0; j < numCols; j++) {
+//             dfResult.columns[j].push_back(columns[j][idx]);
+//         }
+//     }
 
-    // mutex.unlock();
+//     // mutex.unlock();
 
-    return dfResult;
-}
+//     return dfResult;
+// }
 
 string variantToString(const ElementType& val) {
     /*Função auxiliar para alterar o tipo variant para string.*/
@@ -161,13 +167,13 @@ void DataFrame::printDF(){
     /* 
     Realiza o print de um DataFrame. 
     */
+   lock_guard<mutex> lock(mutexDF);
 
     if (numRecords == 0) {
         cout << "DataFrame vazio.\n";
         return;
     }
 
-    // lock()
     vector<int> colWidths(numCols, 0);
 
     // Calcula a largura máxima de cada coluna 
@@ -210,7 +216,6 @@ void DataFrame::printDF(){
     }
 
     printSeparator();
-    // unlock()
 }
 
 
@@ -245,7 +250,7 @@ int main() {
     df.printDF();
 
     // Impressão dos metadados
-    cout << "\n--- Metadados do DataFrame ---\n";
+    cout << "\nMetadados do DataFrame\n";
     cout << "Num de registros: " << df.numRecords << endl;
     cout << "Num de colunas: " << df.numCols << endl;
 

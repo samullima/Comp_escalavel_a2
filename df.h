@@ -5,8 +5,6 @@
 #include <mutex>
 #include <thread>
 
-// TODO : adicionar mecanismos de concorrência básicos
-
 using namespace std;
 using ElementType = variant<int, float, bool, string>; // Tipo genérico para os dados 
 
@@ -25,7 +23,7 @@ class DataFrame {
         vector<vector<ElementType>> columns; 
 
         // Metadados
-        int numRecords = 0;
+        int numRecords = 0; 
         int numCols = 0; 
         vector<string> colNames;
         unordered_map<string, int> idxColumns;
@@ -39,8 +37,8 @@ class DataFrame {
 
     private:
         // Concorrência 
-        // mutex mutexDF;
-        // vector<mutex> columnMutexes;
-        // vector<mutex> rowMutexes;
+        mutex mutexDF;
+        vector<mutex> columnMutexes;
+        vector<mutex> rowMutexes;
 };
     
