@@ -213,14 +213,14 @@ void DataFrame::printDF(){
 }
 
 void DataFrame::printMtx(){
-    std::cout << "Mutexes das COLUNAS:\n";
+    cout << "Mutexes das COLUNAS:\n";
     for (size_t i = 0; i < columnMutexes.size(); ++i) {
-        std::cout << "  Coluna [" << i << "] mutex @ " << &columnMutexes[i] << "\n";
+        cout << "  Coluna [" << i << "] mutex @ " << &columnMutexes[i] << "\n";
     }
 
-    std::cout << "Mutexes das LINHAS:\n";
+    cout << "Mutexes das LINHAS:\n";
     for (size_t i = 0; i < rowMutexes.size(); ++i) {
-        std::cout << "  Linha [" << i << "] mutex @ " << &rowMutexes[i] << "\n";
+        cout << "  Linha [" << i << "] mutex @ " << &rowMutexes[i] << "\n";
     }
 };
 
