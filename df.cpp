@@ -1,36 +1,12 @@
-
-#include <iostream>
-#include <vector>
-#include <string>
-#include <variant>
-#include <unordered_map>
-#include <mutex>
-#include <thread>
-#include <iomanip>
-#include <iostream>
 #include "df.h"
+#include <iostream>
 #include <algorithm>
-#include <functional>
+#include <iomanip>
+#include <stdexcept>
 
-using namespace std;
-
-// Tipo possível das variáveis
-using ElementType = variant<int, float, bool, string>; 
-
-// TODO : adicionar mecanismos de concorrência básicos
-
-// Mutex para sincronizar acesso ao DataFrame
-mutex df_mutex;
-
-// Construtor
-DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
-{
-    /*
-    Esse construtor faz a base do DataFrame com base em um vetor de nome das colunas
-    e o um vetor com seus respectivos tipos.
-    */
-
-    if (colNamesRef.size() != colTypesRef.size()){
+DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef) {
+    lock_guard<mutex> lock(df_mutex);
+    if (colNamesRef.size() != colTypesRef.size()) {
         cerr << "Número de elementos entre os vetores incompatível" << endl; 
     }
 
@@ -38,56 +14,69 @@ DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& co
     numCols = colNamesRef.size();
     numRecords = 0;
     
-    // Atualização dos Hashes colName-> idx & colName -> colType 
-    for (int i = 0; i < colNamesRef.size(); i++){
+    for (int i = 0; i < colNamesRef.size(); i++) {
         idxColumns[colNamesRef[i]] = i;
         colTypes[colNamesRef[i]] = colTypesRef[i];
     }
 
-    // Adição de colunas vazias 
     columns.resize(numCols);
 }
 
+DataFrame::DataFrame(DataFrame&& other) noexcept {
+    lock_guard<mutex> lock(other.df_mutex);
+    colNames = std::move(other.colNames);
+    columns = std::move(other.columns);
+    idxColumns = std::move(other.idxColumns);
+    colTypes = std::move(other.colTypes);
+    numRecords = other.numRecords;
+    numCols = other.numCols;
+}
 
-// Destrutor
-DataFrame::~DataFrame()
-{
-    // lock()
+DataFrame& DataFrame::operator=(DataFrame&& other) noexcept {
+    if (this != &other) {
+        lock_guard<mutex> lock(other.df_mutex);
+        colNames = std::move(other.colNames);
+        columns = std::move(other.columns);
+        idxColumns = std::move(other.idxColumns);
+        colTypes = std::move(other.colTypes);
+        numRecords = other.numRecords;
+        numCols = other.numCols;
+    }
+    return *this;
+}
+
+
+DataFrame::~DataFrame() {
+    lock_guard<mutex> lock(df_mutex);
     columns.clear();
     colNames.clear();
     idxColumns.clear();
     colTypes.clear();
-
     numCols = 0;
     numRecords = 0;
-    // unlock()
 }
 
-
-void DataFrame::addColumn(const vector<ElementType>& col, string colName, string colType)
-{
-    if (numRecords != col.size()){
-        cerr << "Número de registros imcompatível" << endl;
+void DataFrame::addColumn(const vector<ElementType>& col, string colName, string colType) {
+    lock_guard<mutex> lock(df_mutex);
+    if (numRecords != col.size()) {
+        cerr << "Número de registros incompatível" << endl;
+        return;
     }
 
-    // Se a coluna já existe, atualizamos ela
-    if (colTypes.find(colName) != colTypes.end() && colTypes[colName] == colType){
-        // Dar lock no df
-        // Atualização da coluna existente
+    if (colTypes.find(colName) != colTypes.end() && colTypes[colName] == colType) {
         columns[idxColumns[colName]] = col;
+        return;
     }
     
-    // Atualização dos metadados
     numCols++;
     colNames.push_back(colName);
     idxColumns[colName] = numCols-1;  
     colTypes[colName] = colType;
     columns.push_back(col);
-    // Dar unlock no DF
 }
 
-
 void DataFrame::addRecord(const vector<string>& record) {
+    lock_guard<mutex> lock(df_mutex);
     if (record.size() != numCols) {
         throw invalid_argument("O número de valores no registro deve ser igual ao número de colunas.");
     }
@@ -101,61 +90,41 @@ void DataFrame::addRecord(const vector<string>& record) {
         } else if (type == "float") {
             columns[i].push_back(stof(value));
         } else if (type == "bool") {
-            if (value == "true" || value == "1") {
-                columns[i].push_back(true);
-            } else if (value == "false" || value == "0") {
-                columns[i].push_back(false);
-            } else {
-                throw invalid_argument("Valor inválido para bool na coluna " + colNames[i]);
-            }
+            columns[i].push_back(value == "true" || value == "1");
         } else if (type == "string") {
             columns[i].push_back(value);
         } else {
-            throw invalid_argument("Tipo de dado desconhecido na coluna " + colNames[i]);
+            throw invalid_argument("Tipo de dado desconhecido: " + type);
         }
     }
-
     numRecords++;
 }
 
-
-DataFrame DataFrame::getRecords(const vector<int>& indexes)
-{
-    int qtdIndices = indexes.size();
-
-    // Novo DataFrame 
-    DataFrame dfResult(colNames, vector<string>(colNames.size()));
-    for (int i = 0; i < colNames.size(); i++) {
-        dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
-        dfResult.idxColumns[colNames[i]] = i;
+DataFrame DataFrame::getRecords(const vector<int>& indexes) {
+    lock_guard<mutex> lock(df_mutex);
+    
+    // Cria novo DataFrame com metadados corretos
+    vector<string> resultColTypes;
+    for (const auto& colName : colNames) {
+        resultColTypes.push_back(colTypes.at(colName));
     }
+    
+    DataFrame dfResult(colNames, resultColTypes);
+    dfResult.columns.resize(numCols);
+    dfResult.numRecords = indexes.size();
 
-    dfResult.numCols = numCols;
-    dfResult.numRecords = qtdIndices;
-    dfResult.columns.resize(numCols); 
-
-    // Aqui entraria o lock, se estivermos usando concorrência
-    // mutex.lock();
-
-    // Copia os dados das linhas selecionadas
+    // Copia os dados
     for (int idx : indexes) {
-        if (idx < 0 || idx >= numRecords) {
-            cerr << "Índice fora dos limites: " << idx << endl;
-            continue;
-        }
-
+        if (idx < 0 || idx >= numRecords) continue;
         for (int j = 0; j < numCols; j++) {
             dfResult.columns[j].push_back(columns[j][idx]);
         }
     }
 
-    // mutex.unlock();
-
     return dfResult;
 }
 
-string variantToString(const ElementType& val) {
-    /*Função auxiliar para alterar o tipo variant para string.*/
+string DataFrame::variantToString(const ElementType& val) const {
     return visit([](const auto& arg) -> string {
         if constexpr (is_same_v<decay_t<decltype(arg)>, string>)
             return arg;
@@ -164,32 +133,22 @@ string variantToString(const ElementType& val) {
     }, val);
 }
 
-void DataFrame::printDF(){
-    /* 
-    Realiza o print de um DataFrame. 
-    */
-
+void DataFrame::printDF() const {
+    lock_guard<mutex> lock(df_mutex);
     if (numRecords == 0) {
         cout << "DataFrame vazio.\n";
         return;
     }
 
-    // lock()
     vector<int> colWidths(numCols, 0);
-
-    // Calcula a largura máxima de cada coluna 
-    // TODO : Adicionar paralelismo aqui nesse bloco
     for (size_t j = 0; j < numCols; j++) {
         colWidths[j] = colNames[j].size();
         for (size_t i = 0; i < numRecords; i++) {
             int width = variantToString(columns[j][i]).size();
-            if (width > colWidths[j]) {
-                colWidths[j] = width;
-            }
+            colWidths[j] = max(colWidths[j], width);
         }
     }
 
-    // Linha separadora
     auto printSeparator = [&]() {
         cout << "+";
         for (size_t j = 0; j < numCols; j++) {
@@ -198,7 +157,6 @@ void DataFrame::printDF(){
         cout << endl;
     };
 
-    // Imprime cabeçalho
     printSeparator();
     cout << "|";
     for (size_t j = 0; j < numCols; j++) {
@@ -207,7 +165,6 @@ void DataFrame::printDF(){
     cout << endl;
     printSeparator();
 
-    // Imprime os registros
     for (size_t i = 0; i < numRecords; i++) {
         cout << "|";
         for (size_t j = 0; j < numCols; j++) {
@@ -217,10 +174,10 @@ void DataFrame::printDF(){
     }
 
     printSeparator();
-    // unlock()
 }
 
 vector<ElementType> DataFrame::getRecord(int i) const {
+    lock_guard<mutex> lock(df_mutex);
     vector<ElementType> record;
     for (int j = 0; j < numCols; ++j) {
         record.push_back(columns[j][i]);
@@ -229,141 +186,26 @@ vector<ElementType> DataFrame::getRecord(int i) const {
 }
 
 vector<string> DataFrame::getColumnNames() const {
+    lock_guard<mutex> lock(df_mutex);
     return colNames;
 }
 
 int DataFrame::getNumCols() const {
+    lock_guard<mutex> lock(df_mutex);
     return numCols;
 }
 
 vector<ElementType> DataFrame::getColumn(int i) const {
+    lock_guard<mutex> lock(df_mutex);
     return columns[i];
 }
 
 unordered_map<string, string> DataFrame::getColumnTypes() const {
+    lock_guard<mutex> lock(df_mutex);
     return colTypes;
 }
 
 int DataFrame::getNumRecords() const {
+    lock_guard<mutex> lock(df_mutex);
     return numRecords;
-}
-
-// Função auxiliar para filtrar um bloco de registros
-vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max) {
-    vector<int> idxes_list;
-    
-    for (int i = idx_min; i < idx_max; i++) {
-        if (condition(df.getRecord(i))) {
-            idxes_list.push_back(i);
-        }
-    }
-    
-    return idxes_list;
-}
-
-// Função auxiliar para criar um novo DataFrame com registros filtrados
-DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes) {
-    return df.getRecords(idxes);
-}
-
-// Função principal para filtrar registros
-DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition) {
-    const int NUM_THREADS = thread::hardware_concurrency();
-    int block_size = df.getNumRecords() / NUM_THREADS;
-    
-    vector<vector<int>> thread_results(NUM_THREADS);
-    vector<thread> threads;
-    
-    df_mutex.lock();
-    
-    for (int i = 0; i < NUM_THREADS; i++) {
-        int start = i * block_size;
-        int end = (i == NUM_THREADS - 1) ? df.getNumRecords() : start + block_size;
-        
-        threads.emplace_back([&, start, end, i]() {
-            thread_results[i] = filter_block_records(df, condition, start, end);
-        });
-    }
-    
-    for (auto& t : threads) {
-        t.join();
-    }
-    
-    df_mutex.unlock();
-    
-    // Combina os resultados
-    vector<int> idx_validos;
-    for (const auto& result : thread_results) {
-        idx_validos.insert(idx_validos.end(), result.begin(), result.end());
-    }
-    
-    sort(idx_validos.begin(), idx_validos.end());
-    
-    return filter_records_by_idxes(df, idx_validos);
-}
-
-
-// Driver Code Test
-
-int main() {
-    // Nome das colunas e tipo
-    vector<string> colNames = {"ID", "Nome", "Salario"};
-    vector<string> colTypes = {"int", "string", "float"};
-
-    DataFrame df(colNames, colTypes);
-
-    // Adição de registros
-    df.addRecord({"1", "Camacho", "5000.5"});
-    df.addRecord({"2", "Bebel", "6200.0"});
-    df.addRecord({"3", "Yuri", "4700.75"});
-
-    // Dataframe 
-    cout << "\nDataFrame original:\n";
-    df.printDF();
-
-    // Criação de nova coluna bool
-    vector<ElementType> isHighSalary = {true, true, false};
-    string newColName = "Rico?";
-    string newColType = "bool";
-
-    // Adição da coluna bool
-    df.addColumn(isHighSalary, newColName, newColType);
-
-    // Print do df
-    cout << "\nDataFrame com coluna bool adicionada:\n";
-    df.printDF();
-
-    // Impressão dos metadados
-    cout << "\n--- Metadados do DataFrame ---\n";
-    cout << "Num de registros: " << df.numRecords << endl;
-    cout << "Num de colunas: " << df.numCols << endl;
-
-    cout << "\nNomes das colunas:\n";
-    for (const auto& name : df.colNames) {
-        cout << "- " << name << endl;
-    }
-
-    cout << "\nIdx das colunas:\n";
-    for (const auto& [name, idx] : df.idxColumns) {
-        cout << "- " << name << ": " << idx << endl;
-    }
-
-    cout << "\nTipos das colunas:\n";
-    for (const auto& [name, type] : df.colTypes) {
-        cout << "- " << name << ": " << type << endl;
-    }
-
-    cout << "\nTESTE PARA FILTRAR REGISTROS:\n";
-    // Define condição para filtrar: idade > 5000
-    auto cond = [&](const vector<ElementType>& row) -> bool {
-        return get<float>(row[2]) > 5000.0f;
-    };
-    
-
-    DataFrame filtrado = filter_records(df, cond);
-
-    cout << "\nDataFrame filtrado (idade > 5000):\n";
-    filtrado.printDF();
-
-    return 0;
 }

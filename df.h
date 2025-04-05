@@ -1,3 +1,6 @@
+#ifndef DF_H
+#define DF_H
+
 #include <vector>
 #include <string>
 #include <variant>
@@ -5,60 +8,47 @@
 #include <mutex>
 #include <thread>
 
-// TODO : adicionar mecanismos de concorrência básicos
-
 using namespace std;
-using ElementType = variant<int, float, bool, string>; // Tipo genérico para os dados 
-
+using ElementType = variant<int, float, bool, string>;
 
 class DataFrame {
-    /*
-    Essa classe representa um DataFrame base.
-    */
-    public:
-        // Construtor
-        DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
+public:
+    // Construtor e destrutor
+    DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
+    ~DataFrame();
 
-        // Destrutor
-        ~DataFrame();
+    // Delete operações de cópia
+    DataFrame(const DataFrame&) = delete;
+    DataFrame& operator=(const DataFrame&) = delete;
 
-        vector<vector<ElementType>> columns; 
+    // Move constructor e move assignment operator definidos manualmente
+    DataFrame(DataFrame&& other) noexcept;
+    DataFrame& operator=(DataFrame&& other) noexcept;
 
-        // Metadados
-        int numRecords = 0;
-        int numCols = 0; 
-        vector<string> colNames;
-        unordered_map<string, int> idxColumns;
-        unordered_map<string, string> colTypes;
+    // Métodos principais
+    void addColumn(const vector<ElementType>& col, string colName, string colType);
+    void addRecord(const vector<string>& record);
+    DataFrame getRecords(const vector<int>& indexes);
+    void printDF() const;
 
-        // Métodos
-        void addColumn(const vector<ElementType>& col, string colName, string colType);
-        void addRecord(const vector<string>& record);
-        DataFrame getRecords(const vector<int>& indexes);
-        void printDF();
+    // Métodos de acesso
+    vector<ElementType> getRecord(int i) const;
+    vector<string> getColumnNames() const;
+    int getNumCols() const;
+    vector<ElementType> getColumn(int i) const;
+    unordered_map<string, string> getColumnTypes() const;
+    int getNumRecords() const;
 
-        // Retorna o registro (linha) i como vetor de ElementType
-        vector<ElementType> getRecord(int i) const;
+private:
+    mutable mutex df_mutex;
+    vector<vector<ElementType>> columns;
+    vector<string> colNames;
+    unordered_map<string, int> idxColumns;
+    unordered_map<string, string> colTypes;
+    int numRecords = 0;
+    int numCols = 0;
 
-        // Retorna os nomes das colunas
-        vector<string> getColumnNames() const;
-
-        // Retorna o número de colunas
-        int getNumCols() const;
-
-        // Retorna a coluna i como vetor de ElementType
-        vector<ElementType> getColumn(int i) const;
-
-        // Retorna o mapa de tipos das colunas
-        unordered_map<string, string> getColumnTypes() const;
-
-        // Retorna o número de registros (linhas)
-        int getNumRecords() const;
-
-    private:
-        // Concorrência 
-        // mutex mutexDF;
-        // vector<mutex> columnMutexes;
-        // vector<mutex> rowMutexes;
+    string variantToString(const ElementType& val) const;
 };
-    
+
+#endif
