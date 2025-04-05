@@ -8,31 +8,21 @@
 #include <iostream>
 #include "df.h"
 
-using namespace std;
 
-// Tipo possível das variáveis
-using ElementType = variant<int, float, bool, string>; 
+using namespace std;
+using ElementType = variant<int, float, bool, string>; // Tipo possível das variáveis
+
 
 // Construtor
-DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
+DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef, mutex& mutexDF)
+    : colNames(colNamesRef), numCols(colNamesRef.size()), numRecords(0), mutexDF(mutexDF)
 {
-    /*
-    Esse construtor faz a base do DataFrame com base em um vetor de nome das colunas
-    e o um vetor com seus respectivos tipos.
-    */
-
-    lock_guard<mutex> lock(mutexDF);
-
-    if (colNamesRef.size() != colTypesRef.size()){
-        cerr << "Número de elementos entre os vetores incompatível" << endl; 
+    if (colNamesRef.size() != colTypesRef.size()) {
+        cerr << "Número de elementos entre os vetores incompatível" << endl;
     }
 
-    colNames = colNamesRef;
-    numCols = colNamesRef.size();
-    numRecords = 0;
-    
-    // Atualização dos Hashes colName-> idx & colName -> colType 
-    for (int i = 0; i < colNamesRef.size(); i++){
+    // Atualização dos Hashes colName-> idx e colName -> colType 
+    for (int i = 0; i < colNamesRef.size(); i++) {
         idxColumns[colNamesRef[i]] = i;
         colTypes[colNamesRef[i]] = colTypesRef[i];
     }
@@ -118,40 +108,37 @@ void DataFrame::addRecord(const vector<string>& record) {
 }
 
 
-// DataFrame DataFrame::getRecords(const vector<int>& indexes)
-// {
-//     int qtdIndices = indexes.size();
+DataFrame DataFrame::getRecords(const vector<int>& indexes, mutex& mutexDFfilter){
+    lock_guard<mutex> lock(mutexDF);
 
-//     // Novo DataFrame 
-//     DataFrame dfResult(colNames, vector<string>(colNames.size()));
-//     for (int i = 0; i < colNames.size(); i++) {
-//         dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
-//         dfResult.idxColumns[colNames[i]] = i;
-//     }
+    int qtdIndices = indexes.size();
 
-//     dfResult.numCols = numCols;
-//     dfResult.numRecords = qtdIndices;
-//     dfResult.columns.resize(numCols); 
+    // Novo DataFrame 
+    DataFrame dfResult(colNames, vector<string>(colNames.size()), mutexDFfilter);
+    
+    for (int i = 0; i < colNames.size(); i++) {
+        dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
+        dfResult.idxColumns[colNames[i]] = i;
+    }
 
-//     // Aqui entraria o lock, se estivermos usando concorrência
-//     // mutex.lock();
+    dfResult.numCols = numCols;
+    dfResult.numRecords = qtdIndices;
+    dfResult.columns.resize(numCols); 
 
-//     // Copia os dados das linhas selecionadas
-//     for (int idx : indexes) {
-//         if (idx < 0 || idx >= numRecords) {
-//             cerr << "Índice fora dos limites: " << idx << endl;
-//             continue;
-//         }
+    // Copia os dados das linhas selecionadas
+    for (int idx : indexes) {
+        if (idx < 0 || idx >= numRecords) {
+            cerr << "Índice fora dos limites: " << idx << endl;
+            continue;
+        }
 
-//         for (int j = 0; j < numCols; j++) {
-//             dfResult.columns[j].push_back(columns[j][idx]);
-//         }
-//     }
+        for (int j = 0; j < numCols; j++) {
+            dfResult.columns[j].push_back(columns[j][idx]);
+        }
+    }
 
-//     // mutex.unlock();
-
-//     return dfResult;
-// }
+    return dfResult;
+}
 
 string variantToString(const ElementType& val) {
     /*Função auxiliar para alterar o tipo variant para string.*/
@@ -225,8 +212,9 @@ int main() {
     // Nome das colunas e tipo
     vector<string> colNames = {"ID", "Nome", "Salario"};
     vector<string> colTypes = {"int", "string", "float"};
+    mutex mutexDF;
 
-    DataFrame df(colNames, colTypes);
+    DataFrame df(colNames, colTypes, mutexDF);
 
     // Adição de registros
     df.addRecord({"1", "Camacho", "5000.5"});
@@ -268,6 +256,13 @@ int main() {
     for (const auto& [name, type] : df.colTypes) {
         cout << "- " << name << ": " << type << endl;
     }
+
+    // Teste da função getRecords
+    cout << "\nTeste da getRecords:\n";
+    mutex mutexFilter;  
+    vector<int> indices = {0, 2}; 
+    DataFrame df_filter = df.getRecords(indices, mutexFilter);
+    df_filter.printDF();
 
     return 0;
 }
