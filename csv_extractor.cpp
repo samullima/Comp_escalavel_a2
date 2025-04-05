@@ -19,11 +19,11 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     */
     
     string line;
-    bool eof = false;
+    int blocksize = 30000;
     while(!file.eof())
     {
         vector<string> blockRead;
-        for(int i = 0; i < 10000 && getline(file, line); i++) {
+        for(int i = 0; i < blocksize && getline(file, line); i++) {
             blockRead.push_back(line);
         }
         mtxFile.lock();
@@ -47,39 +47,81 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     cout << "Número de linhas lidas: " << linesRead.size() << endl;
 }
 
+// void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter) {
+//     /*
+//     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
+//     */
+   
+//     while(!fileAlreadyRead || recordsCount < linesRead.size()){
+//         bool canProceed = false;
+//         int currentLine = 0;
+//         mtxCounter.lock();
+//         canProceed = (recordsCount < linesRead.size());
+//         int currentLine = recordsCount;
+//         recordsCount = recordsCount + canProceed;
+//         mtxCounter.unlock();
+//         if(!canProceed) {
+//             continue;
+//         }
+//         if(!fileAlreadyRead)
+//             mtxFile.lock();
+//         string line = linesRead[currentLine];
+//         mtxFile.unlock();
+//         stringstream ss(line);
+//         string value;
+//         vector<string> record;
+//         while (getline(ss, value, ',')) {
+//             record.push_back(value);
+//         }
+//         // Adiciona o registro ao DataFrame
+//         if(record.size() != df->numCols) {
+//             cerr << "Número de valores no registro " << currentLine << " não é igual ao número de colunas." << endl;
+//             continue;
+//         }
+//         df->addRecord(record);
+//     }
+// }
+
 void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter) {
     /*
     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
     */
    
+   int blocksize = 10000;
     while(!fileAlreadyRead || recordsCount < linesRead.size()){
-        bool canProceed = false;
+        int beginning = 0;
+        int lastLine = 0;
         mtxCounter.lock();
-        canProceed = (recordsCount < linesRead.size());
-        int currentLine = recordsCount;
-        recordsCount = recordsCount + canProceed;
+        if(recordsCount < linesRead.size()) {
+            beginning = recordsCount;
+            if(recordsCount + blocksize < linesRead.size())
+                lastLine = recordsCount + blocksize;
+            else
+                lastLine = linesRead.size();
+            recordsCount = lastLine;
+        }
+        else{
+            mtxCounter.unlock();
+            continue;
+        }
         mtxCounter.unlock();
-        if(!canProceed) {
-            continue;
+
+        for(int i = beginning; i < lastLine; i++) {
+            if(!fileAlreadyRead)
+                mtxFile.lock();
+            string line = linesRead[i];
+            mtxFile.unlock();
+            stringstream ss(line);
+            string value;
+            vector<string> record;
+            while (getline(ss, value, ',')) {
+                record.push_back(value);
+            }
+            df->addRecord(record);
         }
-        if(!fileAlreadyRead)
-            mtxFile.lock();
-        string line = linesRead[currentLine];
-        mtxFile.unlock();
-        stringstream ss(line);
-        string value;
-        vector<string> record;
-        while (getline(ss, value, ',')) {
-            record.push_back(value);
-        }
-        // Adiciona o registro ao DataFrame
-        if(record.size() != df->numCols) {
-            cerr << "Número de valores no registro " << currentLine << " não é igual ao número de colunas." << endl;
-            continue;
-        }
-        df->addRecord(record);
     }
 }
+
 
 DataFrame* readCSV(const string& filename, int numThreads) {
     /*
