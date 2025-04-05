@@ -55,6 +55,9 @@ class DataFrame {
         // Retorna o número de registros (linhas)
         int getNumRecords() const;
 
+        // Retorna o índice da coluna
+        int getColumnIndex(const string&) const;
+
     private:
         // Concorrência 
         // mutex mutexDF;

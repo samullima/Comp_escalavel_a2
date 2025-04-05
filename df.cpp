@@ -302,6 +302,59 @@ DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&
     return filter_records_by_idxes(df, idx_validos);
 }
 
+int DataFrame::getColumnIndex(const string& colName) const {
+    auto it = idxColumns.find(colName);
+    if (it == idxColumns.end()) {
+        throw invalid_argument("Coluna não encontrada: " + colName);
+    }
+    return it->second;
+}
+
+template <typename T>
+T accumulate(const vector<T>& vec, T init) {
+    for (const T& val : vec) {
+        init += val;
+    }
+    return init;
+}
+
+DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col) {
+    int group_idx = df.getColumnIndex(group_col);
+    int target_idx = df.getColumnIndex(target_col);
+
+    unordered_map<string, vector<float>> groups;
+
+    for (int i = 0; i < df.getNumRecords(); ++i) {
+        string key = variantToString(df.getColumn(group_idx)[i]);
+
+        // Conversão segura para float
+        float value = 0.0f;
+        try {
+            value = get<float>(df.getColumn(target_idx)[i]);
+        } catch (const bad_variant_access&) {
+            cerr << "Erro: valor em " << target_col << " na linha " << i << " não é float." << endl;
+            continue;
+        }
+
+        groups[key].push_back(value);
+    }
+
+    // Cria o novo DataFrame com as médias
+    vector<string> colNames = {group_col, "mean_" + target_col};
+    vector<string> colTypes = {"string", "float"};
+    DataFrame result_df(colNames, colTypes);
+
+    for (const auto& pair : groups) {
+        const string& key = pair.first;
+        const vector<float>& values = pair.second;
+        float mean = accumulate(values, 0.0f) / values.size();
+
+        result_df.addRecord({key, to_string(mean)});
+    }
+
+    return result_df;
+}
+
 
 // Driver Code Test
 
@@ -353,6 +406,7 @@ int main() {
         cout << "- " << name << ": " << type << endl;
     }
 
+    // Teste de filtrar registros
     cout << "\nTESTE PARA FILTRAR REGISTROS:\n";
     // Define condição para filtrar: idade > 5000
     auto cond = [&](const vector<ElementType>& row) -> bool {
@@ -364,6 +418,22 @@ int main() {
 
     cout << "\nDataFrame filtrado (idade > 5000):\n";
     filtrado.printDF();
+
+    // Teste do groupby
+    cout << "\nTeste para o groupby\n";
+    vector<string> colNames_2 = {"account_id", "amount"};
+    vector<string> colTypes_2 = {"int", "float"};
+
+    DataFrame df_2(colNames_2, colTypes_2);
+
+    df_2.addRecord({"1", "100.0"});
+    df_2.addRecord({"2", "200.0"});
+    df_2.addRecord({"1", "300.0"});
+    df_2.addRecord({"2", "400.0"});
+    df_2.addRecord({"3", "150.0"});
+
+    DataFrame df_grouped = groupby_mean(df_2, "account_id", "amount");
+    df_grouped.printDF();
 
     return 0;
 }
