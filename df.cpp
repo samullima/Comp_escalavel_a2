@@ -1,3 +1,5 @@
+
+#include <iostream>
 #include <vector>
 #include <string>
 #include <variant>
@@ -7,6 +9,8 @@
 #include <iomanip>
 #include <iostream>
 #include "df.h"
+#include <algorithm>
+#include <functional>
 
 using namespace std;
 
@@ -14,6 +18,9 @@ using namespace std;
 using ElementType = variant<int, float, bool, string>; 
 
 // TODO : adicionar mecanismos de concorrência básicos
+
+// Mutex para sincronizar acesso ao DataFrame
+mutex df_mutex;
 
 // Construtor
 DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
@@ -213,6 +220,88 @@ void DataFrame::printDF(){
     // unlock()
 }
 
+vector<ElementType> DataFrame::getRecord(int i) const {
+    vector<ElementType> record;
+    for (int j = 0; j < numCols; ++j) {
+        record.push_back(columns[j][i]);
+    }
+    return record;
+}
+
+vector<string> DataFrame::getColumnNames() const {
+    return colNames;
+}
+
+int DataFrame::getNumCols() const {
+    return numCols;
+}
+
+vector<ElementType> DataFrame::getColumn(int i) const {
+    return columns[i];
+}
+
+unordered_map<string, string> DataFrame::getColumnTypes() const {
+    return colTypes;
+}
+
+int DataFrame::getNumRecords() const {
+    return numRecords;
+}
+
+// Função auxiliar para filtrar um bloco de registros
+vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max) {
+    vector<int> idxes_list;
+    
+    for (int i = idx_min; i < idx_max; i++) {
+        if (condition(df.getRecord(i))) {
+            idxes_list.push_back(i);
+        }
+    }
+    
+    return idxes_list;
+}
+
+// Função auxiliar para criar um novo DataFrame com registros filtrados
+DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes) {
+    return df.getRecords(idxes);
+}
+
+// Função principal para filtrar registros
+DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition) {
+    const int NUM_THREADS = thread::hardware_concurrency();
+    int block_size = df.getNumRecords() / NUM_THREADS;
+    
+    vector<vector<int>> thread_results(NUM_THREADS);
+    vector<thread> threads;
+    
+    df_mutex.lock();
+    
+    for (int i = 0; i < NUM_THREADS; i++) {
+        int start = i * block_size;
+        int end = (i == NUM_THREADS - 1) ? df.getNumRecords() : start + block_size;
+        
+        threads.emplace_back([&, start, end, i]() {
+            thread_results[i] = filter_block_records(df, condition, start, end);
+        });
+    }
+    
+    for (auto& t : threads) {
+        t.join();
+    }
+    
+    df_mutex.unlock();
+    
+    // Combina os resultados
+    vector<int> idx_validos;
+    for (const auto& result : thread_results) {
+        idx_validos.insert(idx_validos.end(), result.begin(), result.end());
+    }
+    
+    sort(idx_validos.begin(), idx_validos.end());
+    
+    return filter_records_by_idxes(df, idx_validos);
+}
+
 
 // Driver Code Test
 
@@ -263,6 +352,18 @@ int main() {
     for (const auto& [name, type] : df.colTypes) {
         cout << "- " << name << ": " << type << endl;
     }
+
+    cout << "\nTESTE PARA FILTRAR REGISTROS:\n";
+    // Define condição para filtrar: idade > 5000
+    auto cond = [&](const vector<ElementType>& row) -> bool {
+        return get<float>(row[2]) > 5000.0f;
+    };
+    
+
+    DataFrame filtrado = filter_records(df, cond);
+
+    cout << "\nDataFrame filtrado (idade > 5000):\n";
+    filtrado.printDF();
 
     return 0;
 }
