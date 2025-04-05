@@ -6,6 +6,7 @@
 #include <thread>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include "df.h"
 
 using namespace std;
@@ -28,6 +29,8 @@ DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& co
 
     // Adição de colunas vazias 
     columns.resize(numCols);
+    columnMutexes.resize(numCols);
+    rowMutexes.resize(numRecords);
 }
 
 
@@ -69,6 +72,7 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
     idxColumns[colName] = numCols-1;  
     colTypes[colName] = colType;
     columns.push_back(col);
+    columnMutexes.emplace_back(); 
 }
 
 
@@ -104,6 +108,7 @@ void DataFrame::addRecord(const vector<string>& record) {
     }
 
     numRecords++;
+    rowMutexes.emplace_back();
 }
 
 
@@ -120,7 +125,8 @@ DataFrame DataFrame::getRecords(const vector<int>& indexes) const {
 
     // Novo df com os tipos corretos
     DataFrame dfResult(colNames, tipos);
-    dfResult.columns.resize(numCols);  
+    dfResult.columns.resize(numCols);
+    dfResult.columnMutexes.resize(numCols);  
 
     // Cópia das linhas
     for (int idx : indexes) {
@@ -134,6 +140,7 @@ DataFrame DataFrame::getRecords(const vector<int>& indexes) const {
         }
 
         dfResult.numRecords++;  
+        dfResult.rowMutexes.emplace_back();
     }
 
     return dfResult;
@@ -166,6 +173,7 @@ void DataFrame::printDF(){
     // TODO : Adicionar paralelismo aqui nesse bloco
     for (size_t j = 0; j < numCols; j++) {
         colWidths[j] = colNames[j].size();
+        
         for (size_t i = 0; i < numRecords; i++) {
             int width = variantToString(columns[j][i]).size();
             if (width > colWidths[j]) {
@@ -203,6 +211,18 @@ void DataFrame::printDF(){
 
     printSeparator();
 }
+
+void DataFrame::printMtx(){
+    std::cout << "Mutexes das COLUNAS:\n";
+    for (size_t i = 0; i < columnMutexes.size(); ++i) {
+        std::cout << "  Coluna [" << i << "] mutex @ " << &columnMutexes[i] << "\n";
+    }
+
+    std::cout << "Mutexes das LINHAS:\n";
+    for (size_t i = 0; i < rowMutexes.size(); ++i) {
+        std::cout << "  Linha [" << i << "] mutex @ " << &rowMutexes[i] << "\n";
+    }
+};
 
 // Driver Code Test
 
@@ -279,6 +299,10 @@ int main() {
     for (const auto& [name, type] : df_filter.colTypes) {
         cout << "- " << name << ": " << type << endl;
     }
-    
+
+    df.printMtx();
+    cout << "\n------------------------\n" << endl;
+    df_filter.printMtx();
+
     return 0;
 }
