@@ -6,39 +6,31 @@
 #include <thread>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include "df.h"
 
 using namespace std;
+using ElementType = variant<int, float, bool, string>; // Tipo possível das variáveis
 
-// Tipo possível das variáveis
-using ElementType = variant<int, float, bool, string>; 
 
 // Construtor
 DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
+    : colNames(colNamesRef), numCols(colNamesRef.size()), numRecords(0)
 {
-    /*
-    Esse construtor faz a base do DataFrame com base em um vetor de nome das colunas
-    e o um vetor com seus respectivos tipos.
-    */
-
-    lock_guard<mutex> lock(mutexDF);
-
-    if (colNamesRef.size() != colTypesRef.size()){
-        cerr << "Número de elementos entre os vetores incompatível" << endl; 
+    if (colNamesRef.size() != colTypesRef.size()) {
+        cerr << "Número de elementos entre os vetores incompatível" << endl;
     }
 
-    colNames = colNamesRef;
-    numCols = colNamesRef.size();
-    numRecords = 0;
-    
-    // Atualização dos Hashes colName-> idx & colName -> colType 
-    for (int i = 0; i < colNamesRef.size(); i++){
+    // Atualização dos Hashes colName-> idx e colName -> colType 
+    for (int i = 0; i < colNamesRef.size(); i++) {
         idxColumns[colNamesRef[i]] = i;
         colTypes[colNamesRef[i]] = colTypesRef[i];
     }
 
     // Adição de colunas vazias 
     columns.resize(numCols);
+    columnMutexes.resize(numCols);
+    rowMutexes.resize(numRecords);
 }
 
 
@@ -80,6 +72,7 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
     idxColumns[colName] = numCols-1;  
     colTypes[colName] = colType;
     columns.push_back(col);
+    columnMutexes.emplace_back(); 
 }
 
 
@@ -115,43 +108,43 @@ void DataFrame::addRecord(const vector<string>& record) {
     }
 
     numRecords++;
+    rowMutexes.emplace_back();
 }
 
 
-// DataFrame DataFrame::getRecords(const vector<int>& indexes)
-// {
-//     int qtdIndices = indexes.size();
+DataFrame DataFrame::getRecords(const vector<int>& indexes) const {
+    lock_guard<mutex> lock(mutexDF);
 
-//     // Novo DataFrame 
-//     DataFrame dfResult(colNames, vector<string>(colNames.size()));
-//     for (int i = 0; i < colNames.size(); i++) {
-//         dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
-//         dfResult.idxColumns[colNames[i]] = i;
-//     }
+    int qtdIndices = indexes.size();
 
-//     dfResult.numCols = numCols;
-//     dfResult.numRecords = qtdIndices;
-//     dfResult.columns.resize(numCols); 
+    // Vetor de tipos
+    vector<string> tipos;
+    for (const string& col : colNames) {
+        tipos.push_back(colTypes.at(col));
+    }
 
-//     // Aqui entraria o lock, se estivermos usando concorrência
-//     // mutex.lock();
+    // Novo df com os tipos corretos
+    DataFrame dfResult(colNames, tipos);
+    dfResult.columns.resize(numCols);
+    dfResult.columnMutexes.resize(numCols);  
 
-//     // Copia os dados das linhas selecionadas
-//     for (int idx : indexes) {
-//         if (idx < 0 || idx >= numRecords) {
-//             cerr << "Índice fora dos limites: " << idx << endl;
-//             continue;
-//         }
+    // Cópia das linhas
+    for (int idx : indexes) {
+        if (idx < 0 || idx >= numRecords) {
+            cerr << "Índice fora dos limites: " << idx << endl;
+            continue;
+        }
 
-//         for (int j = 0; j < numCols; j++) {
-//             dfResult.columns[j].push_back(columns[j][idx]);
-//         }
-//     }
+        for (int j = 0; j < numCols; j++) {
+            dfResult.columns[j].push_back(columns[j][idx]);
+        }
 
-//     // mutex.unlock();
+        dfResult.numRecords++;  
+        dfResult.rowMutexes.emplace_back();
+    }
 
-//     return dfResult;
-// }
+    return dfResult;
+}
 
 string variantToString(const ElementType& val) {
     /*Função auxiliar para alterar o tipo variant para string.*/
@@ -180,6 +173,7 @@ void DataFrame::printDF(){
     // TODO : Adicionar paralelismo aqui nesse bloco
     for (size_t j = 0; j < numCols; j++) {
         colWidths[j] = colNames[j].size();
+        
         for (size_t i = 0; i < numRecords; i++) {
             int width = variantToString(columns[j][i]).size();
             if (width > colWidths[j]) {
@@ -218,56 +212,17 @@ void DataFrame::printDF(){
     printSeparator();
 }
 
+void DataFrame::printMtx(){
+    cout << "Mutexes das COLUNAS:\n";
+    for (size_t i = 0; i < columnMutexes.size(); ++i) {
+        cout << "  Coluna [" << i << "] mutex @ " << &columnMutexes[i] << "\n";
+    }
+
+    cout << "Mutexes das LINHAS:\n";
+    for (size_t i = 0; i < rowMutexes.size(); ++i) {
+        cout << "  Linha [" << i << "] mutex @ " << &rowMutexes[i] << "\n";
+    }
+};
 
 // Driver Code Test
 
-int main() {
-    // Nome das colunas e tipo
-    vector<string> colNames = {"ID", "Nome", "Salario"};
-    vector<string> colTypes = {"int", "string", "float"};
-
-    DataFrame df(colNames, colTypes);
-
-    // Adição de registros
-    df.addRecord({"1", "Camacho", "5000.5"});
-    df.addRecord({"2", "Bebel", "6200.0"});
-    df.addRecord({"3", "Yuri", "4700.75"});
-
-    // Dataframe 
-    cout << "\nDataFrame original:\n";
-    df.printDF();
-
-    // Criação de nova coluna bool
-    vector<ElementType> isHighSalary = {true, true, false};
-    string newColName = "Rico?";
-    string newColType = "bool";
-
-    // Adição da coluna bool
-    df.addColumn(isHighSalary, newColName, newColType);
-
-    // Print do df
-    cout << "\nDataFrame com coluna bool adicionada:\n";
-    df.printDF();
-
-    // Impressão dos metadados
-    cout << "\nMetadados do DataFrame\n";
-    cout << "Num de registros: " << df.numRecords << endl;
-    cout << "Num de colunas: " << df.numCols << endl;
-
-    cout << "\nNomes das colunas:\n";
-    for (const auto& name : df.colNames) {
-        cout << "- " << name << endl;
-    }
-
-    cout << "\nIdx das colunas:\n";
-    for (const auto& [name, idx] : df.idxColumns) {
-        cout << "- " << name << ": " << idx << endl;
-    }
-
-    cout << "\nTipos das colunas:\n";
-    for (const auto& [name, type] : df.colTypes) {
-        cout << "- " << name << ": " << type << endl;
-    }
-
-    return 0;
-}

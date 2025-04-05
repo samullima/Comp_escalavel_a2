@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <thread>
+#include <memory>
 
 using namespace std;
 using ElementType = variant<int, float, bool, string>; // Tipo genérico para os dados 
@@ -16,6 +17,7 @@ class DataFrame {
     public:
         // Construtor
         DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
+        DataFrame(const DataFrame& other);
 
         // Destrutor
         ~DataFrame();
@@ -32,13 +34,13 @@ class DataFrame {
         // Métodos
         void addColumn(const vector<ElementType>& col, string colName, string colType);
         void addRecord(const vector<string>& record);
-        DataFrame getRecords(const vector<int>& indexes);
+        DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
+        void printMtx();
 
     private:
         // Concorrência 
-        mutex mutexDF;
-        vector<mutex> columnMutexes;
-        vector<mutex> rowMutexes;
+        mutable mutex mutexDF;
+        vector<unique_ptr<mutex>> columnMutexes;
+        vector<unique_ptr<mutex>> rowMutexes;
 };
-    

@@ -13,7 +13,8 @@
 
 using namespace std;
 
-int NUM_THREADS = 4;
+int NUM_THREADS = 2;
+mutex mtx2;
 
 void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead) {
     /*
@@ -36,7 +37,9 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     //       );
     // }
     while (getline(file, line)) {
+        mtx2.lock();
         linesRead.push_back(line);
+        mtx2.unlock();
     }
     fileAlreadyRead = true;
     file.close();
@@ -60,7 +63,9 @@ void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& record
         if(!canProceed) {
             continue;
         }
+        mtx2.lock();
         string line = linesRead[currentLine];
+        mtx2.unlock();
         stringstream ss(line);
         string value;
         vector<string> record;
@@ -148,7 +153,5 @@ int main()
     cout << "Número de colunas: " << df->numCols << endl;
     cout << "Número de registros: " << df->numRecords << endl;
 
-
-    
     return 0;
 }
