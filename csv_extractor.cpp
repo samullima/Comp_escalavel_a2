@@ -7,40 +7,39 @@
 #include <mutex>
 #include <thread>
 #include <iomanip>
-#include <iostream>
 #include <chrono>
 #include "df.h"
+#include "csv_extractor.h"
 
 using namespace std;
 
-int NUM_THREADS = 2;
-mutex mtx2;
-
-void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead) {
+void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead, mutex& mtxFile) {
     /*
     Esse método lê o arquivo CSV e preenche o vetor linesRead com as linhas lidas.
     */
     
     string line;
     bool eof = false;
-    int lastIndex = 0;
-    // while(!eof)
-    // {
-    //     vector<string> blockRead;
-    //     for(int i = lastIndex; i < lastIndex + 500; i++ && getline(file, line)) {
-    //         blockRead.push_back(line);
-    //     }
-    //     linesRead.insert(
-    //         linesRead.end(),
-    //         std::make_move_iterator(blockRead.begin()),
-    //         std::make_move_iterator(blockRead.end())
-    //       );
-    // }
-    while (getline(file, line)) {
-        mtx2.lock();
-        linesRead.push_back(line);
-        mtx2.unlock();
+    while(!file.eof())
+    {
+        vector<string> blockRead;
+        for(int i = 0; i < 10000 && getline(file, line); i++) {
+            blockRead.push_back(line);
+        }
+        mtxFile.lock();
+        linesRead.insert(
+            linesRead.end(),
+            std::make_move_iterator(blockRead.begin()),
+            std::make_move_iterator(blockRead.end())
+          );
+        mtxFile.unlock();
     }
+    
+    // while (getline(file, line)) {
+    //     mtxFile.lock();
+    //     linesRead.push_back(line);
+    //     mtxFile.unlock();
+    // }
     fileAlreadyRead = true;
     file.close();
     // Notifica que o arquivo foi lido
@@ -48,24 +47,25 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     cout << "Número de linhas lidas: " << linesRead.size() << endl;
 }
 
-void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtx) {
+void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter) {
     /*
     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
     */
    
     while(!fileAlreadyRead || recordsCount < linesRead.size()){
         bool canProceed = false;
-        mtx.lock();
+        mtxCounter.lock();
         canProceed = (recordsCount < linesRead.size());
         int currentLine = recordsCount;
         recordsCount = recordsCount + canProceed;
-        mtx.unlock();
+        mtxCounter.unlock();
         if(!canProceed) {
             continue;
         }
-        mtx2.lock();
+        if(!fileAlreadyRead)
+            mtxFile.lock();
         string line = linesRead[currentLine];
-        mtx2.unlock();
+        mtxFile.unlock();
         stringstream ss(line);
         string value;
         vector<string> record;
@@ -81,7 +81,7 @@ void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& record
     }
 }
 
-DataFrame* readCSV(const string& filename) {
+DataFrame* readCSV(const string& filename, int numThreads) {
     /*
     Esse método lê um arquivo CSV e preenche o DataFrame com os dados.
     O arquivo CSV deve ter o seguinte formato:
@@ -90,7 +90,7 @@ DataFrame* readCSV(const string& filename) {
     2, "Maria", 4000.75
     3, "José", 2500.00
     */
-    
+    if(numThreads < 2) numThreads = 2;
     ifstream file(filename);
     if(!file.is_open()) {
         cerr << "Erro ao abrir o arquivo: " << filename << endl;
@@ -116,42 +116,28 @@ DataFrame* readCSV(const string& filename) {
     vector<string> linesRead;
     vector<thread> threads;
     bool fileAlreadyRead = false;
+    mutex mtxFile;
+    mutex mtxCounter;
 
-    threads.push_back(thread(readCSVLines, ref(file), ref(linesRead), ref(fileAlreadyRead)));
+    chrono::high_resolution_clock::time_point startRead = chrono::high_resolution_clock::now();
+    threads.push_back(thread(readCSVLines, ref(file), ref(linesRead), ref(fileAlreadyRead), ref(mtxFile)));
     
+    chrono::high_resolution_clock::time_point startProcess = chrono::high_resolution_clock::now();
     int recordsCount = 0;
-    mutex mtx;
-    for(int i = 1; i < NUM_THREADS; i++) {
-        threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtx)));
+    for(int i = 1; i < numThreads; i++) {
+        threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter)));
     }
 
     threads[0].join();
-    for(int i = 1; i < NUM_THREADS; i++) {
-        
+    chrono::high_resolution_clock::time_point endRead = chrono::high_resolution_clock::now();
+    for(int i = 1; i < numThreads; i++) {
         threads[i].join();
     }
+    chrono::high_resolution_clock::time_point endProcess = chrono::high_resolution_clock::now();
+    auto durationRead = chrono::duration_cast<chrono::milliseconds>(endRead - startRead);
+    auto durationProcess = chrono::duration_cast<chrono::milliseconds>(endProcess - startProcess);
+    cout << "Tempo de leitura: " << durationRead.count() << " ms" << endl;
+    cout << "Tempo de processamento: " << durationProcess.count() << " ms" << endl;
     
     return df;
-}
-
-int main()
-{
-    // Nome do arquivo CSV
-    string filename = "data.csv";
-    // ifstream file(filename);
-    // vector<string> linesRead;
-    // bool fileAlreadyRead = false;
-    // cout << fileAlreadyRead << endl;
-    // // Lê o arquivo CSV
-    // readCSVLines(file, linesRead, fileAlreadyRead);
-    // cout << fileAlreadyRead << endl;
-    
-
-    DataFrame * df = readCSV(filename);
-    // df->printDF();
-    cout << "Deu certo" << endl;
-    cout << "Número de colunas: " << df->numCols << endl;
-    cout << "Número de registros: " << df->numRecords << endl;
-
-    return 0;
 }
