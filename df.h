@@ -17,7 +17,7 @@ class DataFrame {
         // Construtor
         DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
         DataFrame(const DataFrame& other);
-        
+
         // Destrutor
         ~DataFrame();
 
@@ -39,6 +39,6 @@ class DataFrame {
     private:
         // Concorrência 
         mutable mutex mutexDF;
-        //vector<mutex> columnMutexes;
-        //vector<mutex> rowMutexes;
+        mutable vector<mutex> columnMutexes;
+        mutable vector<mutex> rowMutexes;
 };
