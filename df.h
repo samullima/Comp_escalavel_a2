@@ -15,8 +15,9 @@ class DataFrame {
     */
     public:
         // Construtor
-        DataFrame(const vector<string>& colNames, const vector<string>& colTypes, mutex& mutexDF);
-
+        DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
+        DataFrame(const DataFrame& other);
+        
         // Destrutor
         ~DataFrame();
 
@@ -32,13 +33,12 @@ class DataFrame {
         // Métodos
         void addColumn(const vector<ElementType>& col, string colName, string colType);
         void addRecord(const vector<string>& record);
-        DataFrame getRecords(const vector<int>& indexes, mutex& mutexDFfilter);
+        DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
 
     private:
         // Concorrência 
-        mutex& mutexDF;
+        mutable mutex mutexDF;
         //vector<mutex> columnMutexes;
         //vector<mutex> rowMutexes;
 };
-    

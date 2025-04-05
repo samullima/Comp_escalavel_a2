@@ -8,14 +8,13 @@
 #include <iostream>
 #include "df.h"
 
-
 using namespace std;
 using ElementType = variant<int, float, bool, string>; // Tipo possível das variáveis
 
 
 // Construtor
-DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef, mutex& mutexDF)
-    : colNames(colNamesRef), numCols(colNamesRef.size()), numRecords(0), mutexDF(mutexDF)
+DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& colTypesRef)
+    : colNames(colNamesRef), numCols(colNamesRef.size()), numRecords(0)
 {
     if (colNamesRef.size() != colTypesRef.size()) {
         cerr << "Número de elementos entre os vetores incompatível" << endl;
@@ -108,24 +107,22 @@ void DataFrame::addRecord(const vector<string>& record) {
 }
 
 
-DataFrame DataFrame::getRecords(const vector<int>& indexes, mutex& mutexDFfilter){
+DataFrame DataFrame::getRecords(const vector<int>& indexes) const {
     lock_guard<mutex> lock(mutexDF);
 
     int qtdIndices = indexes.size();
 
-    // Novo DataFrame 
-    DataFrame dfResult(colNames, vector<string>(colNames.size()), mutexDFfilter);
-    
-    for (int i = 0; i < colNames.size(); i++) {
-        dfResult.colTypes[colNames[i]] = colTypes[colNames[i]];
-        dfResult.idxColumns[colNames[i]] = i;
+    // Vetor de tipos
+    vector<string> tipos;
+    for (const string& col : colNames) {
+        tipos.push_back(colTypes.at(col));
     }
 
-    dfResult.numCols = numCols;
-    dfResult.numRecords = qtdIndices;
-    dfResult.columns.resize(numCols); 
+    // Novo df com os tipos corretos
+    DataFrame dfResult(colNames, tipos);
+    dfResult.columns.resize(numCols);  
 
-    // Copia os dados das linhas selecionadas
+    // Cópia das linhas
     for (int idx : indexes) {
         if (idx < 0 || idx >= numRecords) {
             cerr << "Índice fora dos limites: " << idx << endl;
@@ -135,6 +132,8 @@ DataFrame DataFrame::getRecords(const vector<int>& indexes, mutex& mutexDFfilter
         for (int j = 0; j < numCols; j++) {
             dfResult.columns[j].push_back(columns[j][idx]);
         }
+
+        dfResult.numRecords++;  
     }
 
     return dfResult;
@@ -205,7 +204,6 @@ void DataFrame::printDF(){
     printSeparator();
 }
 
-
 // Driver Code Test
 
 int main() {
@@ -214,7 +212,7 @@ int main() {
     vector<string> colTypes = {"int", "string", "float"};
     mutex mutexDF;
 
-    DataFrame df(colNames, colTypes, mutexDF);
+    DataFrame df(colNames, colTypes);
 
     // Adição de registros
     df.addRecord({"1", "Camacho", "5000.5"});
@@ -259,10 +257,28 @@ int main() {
 
     // Teste da função getRecords
     cout << "\nTeste da getRecords:\n";
-    mutex mutexFilter;  
     vector<int> indices = {0, 2}; 
-    DataFrame df_filter = df.getRecords(indices, mutexFilter);
+    DataFrame df_filter = df.getRecords(indices);
     df_filter.printDF();
 
+    cout << "\nMetadados do DataFrame\n";
+    cout << "Num de registros: " << df_filter.numRecords << endl;
+    cout << "Num de colunas: " << df_filter.numCols << endl;
+
+    cout << "\nNomes das colunas:\n";
+    for (const auto& name : df_filter.colNames) {
+        cout << "- " << name << endl;
+    }
+
+    cout << "\nIdx das colunas:\n";
+    for (const auto& [name, idx] : df_filter.idxColumns) {
+        cout << "- " << name << ": " << idx << endl;
+    }
+
+    cout << "\nTipos das colunas:\n";
+    for (const auto& [name, type] : df_filter.colTypes) {
+        cout << "- " << name << ": " << type << endl;
+    }
+    
     return 0;
 }
