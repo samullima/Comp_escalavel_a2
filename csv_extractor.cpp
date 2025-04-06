@@ -137,7 +137,7 @@ DataFrame* readCSV(const string& filename, int numThreads) {
     }
 
     vector<string> headers;
-    vector<string> colTypes;
+    vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
     
     // Lê o cabeçalho
     string headerLine;
@@ -146,7 +146,7 @@ DataFrame* readCSV(const string& filename, int numThreads) {
     string header;
     while (getline(ss, header, ',')) {
         headers.push_back(header);
-        colTypes.push_back("string"); // Supondo que todos os tipos sejam string inicialmente
+        // colTypes.push_back("string"); // Supondo que todos os tipos sejam string inicialmente
     }
     cout << "Colunas lidas: " << headers.size() << endl;
     DataFrame * df = new DataFrame(headers, colTypes);
