@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <thread>
+#include <deque>
 #include <memory>
 
 using namespace std;
@@ -41,6 +42,6 @@ class DataFrame {
     private:
         // Concorrência 
         mutable mutex mutexDF;
-        vector<unique_ptr<mutex>> columnMutexes;
-        vector<unique_ptr<mutex>> rowMutexes;
+        deque<mutex> columnMutexes;
+        deque<mutex> rowMutexes;
 };
