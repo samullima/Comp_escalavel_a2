@@ -37,7 +37,6 @@ class DataFrame {
         void addRecord(const vector<string>& record);
         DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
-        void printMtx();
 
     private:
         // Concorrência 
