@@ -293,7 +293,8 @@ DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&
     
     // Combina os resultados
     vector<int> idx_validos;
-    for (const auto& result : thread_results) {
+    for (auto it = thread_results.begin(); it != thread_results.end(); ++it) {
+        const auto& result = *it;
         idx_validos.insert(idx_validos.end(), result.begin(), result.end());
     }
     
@@ -304,15 +305,13 @@ DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&
 
 int DataFrame::getColumnIndex(const string& colName) const {
     auto it = idxColumns.find(colName);
-    if (it == idxColumns.end()) {
-        throw invalid_argument("Coluna não encontrada: " + colName);
-    }
     return it->second;
 }
 
 template <typename T>
 T accumulate(const vector<T>& vec, T init) {
-    for (const T& val : vec) {
+    for (int i = 0; i < vec.size(); i++) {
+        T val = vec[i];
         init += val;
     }
     return init;
@@ -329,12 +328,7 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
 
         // Conversão segura para float
         float value = 0.0f;
-        try {
-            value = get<float>(df.getColumn(target_idx)[i]);
-        } catch (const bad_variant_access&) {
-            cerr << "Erro: valor em " << target_col << " na linha " << i << " não é float." << endl;
-            continue;
-        }
+        value = get<float>(df.getColumn(target_idx)[i]);
 
         groups[key].push_back(value);
     }
@@ -344,11 +338,10 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
     vector<string> colTypes = {"string", "float"};
     DataFrame result_df(colNames, colTypes);
 
-    for (const auto& pair : groups) {
-        const string& key = pair.first;
-        const vector<float>& values = pair.second;
+    for (auto it = groups.begin(); it != groups.end(); ++it) {
+        const string& key = it->first;
+        const vector<float>& values = it->second;
         float mean = accumulate(values, 0.0f) / values.size();
-
         result_df.addRecord({key, to_string(mean)});
     }
 
