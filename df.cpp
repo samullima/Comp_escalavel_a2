@@ -267,18 +267,18 @@ DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes) {
 }
 
 // Função principal para filtrar registros
-DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition) {
-    const int NUM_THREADS = thread::hardware_concurrency();
-    int block_size = df.getNumRecords() / NUM_THREADS;
+DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int num_threads) {
+    //const int NUM_THREADS = thread::hardware_concurrency();
+    int block_size = df.getNumRecords() / num_threads;
     
-    vector<vector<int>> thread_results(NUM_THREADS);
+    vector<vector<int>> thread_results(num_threads);
     vector<thread> threads;
     
     df_mutex.lock();
     
-    for (int i = 0; i < NUM_THREADS; i++) {
+    for (int i = 0; i < num_threads; i++) {
         int start = i * block_size;
-        int end = (i == NUM_THREADS - 1) ? df.getNumRecords() : start + block_size;
+        int end = (i == num_threads - 1) ? df.getNumRecords() : min(start + block_size, df.getNumRecords());
         
         threads.emplace_back([&, start, end, i]() {
             thread_results[i] = filter_block_records(df, condition, start, end);
@@ -317,7 +317,7 @@ T accumulate(const vector<T>& vec, T init) {
     return init;
 }
 
-DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col) {
+DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, int num_threads) {
     int group_idx = df.getColumnIndex(group_col);
     int target_idx = df.getColumnIndex(target_col);
 
@@ -340,26 +340,35 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
     // Container de threads
     vector<thread> threads;
 
-    // Paraleliza o cálculo das médias
-    for (auto it = groups.begin(); it != groups.end(); ++it) {
-        threads.emplace_back([&result_df, &mtx, it, &group_col, &target_col]() {
-            const string& key = it->first;
-            const vector<float>& values = it->second;
-            float mean = accumulate(values, 0.0f) / values.size();
+    // Converter unordered_map para vetor de pares para permitir fatiamento
+    vector<pair<string, vector<float>>> group_entries(groups.begin(), groups.end());
+    size_t total_groups = group_entries.size();
+    size_t block_size = (total_groups + num_threads - 1) / num_threads;
 
-            // Adiciona o resultado com mutex
-            lock_guard<mutex> lock(mtx);
-            result_df.addRecord({key, to_string(mean)});
+    for (size_t t = 0; t < num_threads; ++t) {
+        size_t start = t * block_size;
+        size_t end = min(start + block_size, total_groups);
+
+        threads.emplace_back([start, end, &group_entries, &result_df, &mtx, &group_col, &target_col]() {
+            for (size_t i = start; i < end; ++i) {
+                const string& key = group_entries[i].first;
+                const vector<float>& values = group_entries[i].second;
+                float mean = accumulate(values, 0.0f) / values.size();
+
+                mtx.lock();
+                result_df.addRecord({key, to_string(mean)});
+                mtx.unlock();
+            }
         });
     }
 
-    // Espera todas as threads terminarem
     for (size_t i = 0; i < threads.size(); ++i) {
         threads[i].join();
     }
 
     return result_df;
 }
+
 
 
 // Driver Code Test
@@ -413,14 +422,15 @@ int main() {
     }
 
     // Teste de filtrar registros
+    const int NUM_THREADS = thread::hardware_concurrency();
+
     cout << "\nTESTE PARA FILTRAR REGISTROS:\n";
     // Define condição para filtrar: idade > 5000
     auto cond = [&](const vector<ElementType>& row) -> bool {
         return get<float>(row[2]) > 5000.0f;
     };
     
-
-    DataFrame filtrado = filter_records(df, cond);
+    DataFrame filtrado = filter_records(df, cond, NUM_THREADS);
 
     cout << "\nDataFrame filtrado (idade > 5000):\n";
     filtrado.printDF();
@@ -438,7 +448,7 @@ int main() {
     df_2.addRecord({"2", "400.0"});
     df_2.addRecord({"3", "150.0"});
 
-    DataFrame df_grouped = groupby_mean(df_2, "account_id", "amount");
+    DataFrame df_grouped = groupby_mean(df_2, "account_id", "amount", NUM_THREADS);
     df_grouped.printDF();
 
     return 0;
