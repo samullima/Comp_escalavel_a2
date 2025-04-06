@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
     cout << "Número de threads: " << NUM_THREADS << endl;
 
     // Nome do arquivo CSV
-    string filename = "data.csv";    
+    string filename = "transactions.csv";    
 
     DataFrame * df = readCSV(filename, NUM_THREADS);
     // df->printDF();

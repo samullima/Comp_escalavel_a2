@@ -36,5 +36,5 @@ def gerar_transacoes(n=10000):
     return pd.DataFrame(dados)
 
 
-df_transacoes = gerar_transacoes(10000)
+df_transacoes = gerar_transacoes(1000000)
 df_transacoes.to_csv("transactions.csv", index=False)
