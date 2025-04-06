@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <thread>
+#include <deque>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -77,36 +78,42 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
 
 
 void DataFrame::addRecord(const vector<string>& record) {
-    lock_guard<mutex> lock(mutexDF);
-
+    
     if (record.size() != numCols) {
         throw invalid_argument("O número de valores no registro deve ser igual ao número de colunas.");
     }
-
+    
+    vector<ElementType> newRecord(numCols);
+    
     for (size_t i = 0; i < record.size(); i++) {
         // lock_guard<mutex> colLock(columnMutexes[i]); 
         const string& type = colTypes[colNames[i]];
         const string& value = record[i];
-
+        
         if (type == "int") {
-            columns[i].push_back(stoi(value));
+            newRecord[i] = (stoi(value));
         } else if (type == "float") {
-            columns[i].push_back(stof(value));
+            newRecord[i] = (stof(value));
         } else if (type == "bool") {
             if (value == "true" || value == "1") {
-                columns[i].push_back(true);
+                newRecord[i] = (true);
             } else if (value == "false" || value == "0") {
-                columns[i].push_back(false);
+                newRecord[i] = (false);
             } else {
                 throw invalid_argument("Valor inválido para bool na coluna " + colNames[i]);
             }
         } else if (type == "string") {
-            columns[i].push_back(value);
+            newRecord[i] = (value);
         } else {
             throw invalid_argument("Tipo de dado desconhecido na coluna " + colNames[i]);
         }
     }
-
+    
+    lock_guard<mutex> lock(mutexDF);
+    for(size_t i = 0; i < numCols; i++) {
+        // lock_guard<mutex> colLock(columnMutexes[i]); 
+        columns[i].push_back(newRecord[i]);
+    }
     numRecords++;
     rowMutexes.emplace_back();
 }
@@ -226,6 +233,7 @@ void DataFrame::printMtx(){
 
 // Driver Code Test
 
+/*
 int main() {
     // Nome das colunas e tipo
     vector<string> colNames = {"ID", "Nome", "Salario"};
@@ -304,5 +312,7 @@ int main() {
     cout << "\n------------------------\n" << endl;
     df_filter.printMtx();
 
+
     return 0;
 }
+*/
