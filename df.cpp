@@ -325,11 +325,7 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
 
     for (int i = 0; i < df.getNumRecords(); ++i) {
         string key = variantToString(df.getColumn(group_idx)[i]);
-
-        // Conversão segura para float
-        float value = 0.0f;
-        value = get<float>(df.getColumn(target_idx)[i]);
-
+        float value = get<float>(df.getColumn(target_idx)[i]);
         groups[key].push_back(value);
     }
 
@@ -338,11 +334,28 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
     vector<string> colTypes = {"string", "float"};
     DataFrame result_df(colNames, colTypes);
 
+    // Mutex para sincronizar o acesso ao DataFrame final
+    mutex mtx;
+
+    // Container de threads
+    vector<thread> threads;
+
+    // Paraleliza o cálculo das médias
     for (auto it = groups.begin(); it != groups.end(); ++it) {
-        const string& key = it->first;
-        const vector<float>& values = it->second;
-        float mean = accumulate(values, 0.0f) / values.size();
-        result_df.addRecord({key, to_string(mean)});
+        threads.emplace_back([&result_df, &mtx, it, &group_col, &target_col]() {
+            const string& key = it->first;
+            const vector<float>& values = it->second;
+            float mean = accumulate(values, 0.0f) / values.size();
+
+            // Adiciona o resultado com mutex
+            lock_guard<mutex> lock(mtx);
+            result_df.addRecord({key, to_string(mean)});
+        });
+    }
+
+    // Espera todas as threads terminarem
+    for (size_t i = 0; i < threads.size(); ++i) {
+        threads[i].join();
     }
 
     return result_df;
