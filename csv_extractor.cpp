@@ -120,7 +120,7 @@ void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recor
 }
 
 
-DataFrame* readCSV(const string& filename, int numThreads) {
+DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTypes) {
     /*
     Esse método lê um arquivo CSV e preenche o DataFrame com os dados.
     O arquivo CSV deve ter o seguinte formato:
@@ -137,7 +137,7 @@ DataFrame* readCSV(const string& filename, int numThreads) {
     }
 
     vector<string> headers;
-    vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
+    // vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
     
     // Lê o cabeçalho
     string headerLine;
