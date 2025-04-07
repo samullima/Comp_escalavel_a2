@@ -464,8 +464,8 @@ namespace multiprocessing{
 using namespace std::chrono;
 
 int main() {
-    string file1 = "transaction_4_1.csv";
-    string file2 = "transaction_4_1.csv";
+    string file1 = "transaction_4_2.csv";
+    string file2 = "transaction_4_2.csv";
     string file3 = "transactions.csv";
 
     vector<int> thread_counts = {1, 2, 4, 8, 16};
