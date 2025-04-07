@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <fstream>
+#include <sstream>
 #include "df.h"
 
 using namespace std;
@@ -217,4 +219,50 @@ void DataFrame::printDF(){
     }
 
     printSeparator();
+}
+
+void DataFrame::DFtoCSV(string csvName) {
+    /* 
+    Realiza a conversão do objeto DataFrame para CSV.
+    */
+
+    lock_guard<mutex> lock(mutexDF);
+
+    ofstream outFile(csvName + ".csv");
+    if (!outFile.is_open()) {
+        cerr << "Erro ao abrir o arquivo para escrita." << endl;
+        return;
+    }
+
+    // Escrita do nome das colunas
+    for (int i = 0; i < numCols; ++i) {
+        outFile << colNames[i];
+        if (i < numCols - 1) 
+            outFile << ",";
+    }
+    outFile << "\n";
+
+    // Escrita dos dados das linhas
+    for (int row = 0; row < numRecords; ++row) {
+        for (int col = 0; col < numCols; ++col) {
+            string valStr = variantToString(columns[col][row]);
+
+            // Aspas em torno de strings e escape de aspas internas
+            if (colTypes[colNames[col]] == "string") {
+                for (size_t pos = 0; (pos = valStr.find('"', pos)) != string::npos; pos += 2) {
+                    valStr.insert(pos, "\""); // duplica aspas internas
+                }
+                outFile << "\"" << valStr << "\"";
+            } else {
+                outFile << valStr;
+            }
+
+            // Adição do separador ","
+            if (col < numCols - 1) 
+                outFile << ",";
+        }
+        outFile << "\n";
+    }
+
+    outFile.close();
 }

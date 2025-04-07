@@ -5,6 +5,8 @@
 #include <mutex>
 #include <thread>
 #include <deque>
+#include <fstream>
+#include <sstream>
 #include <memory>
 
 using namespace std;
@@ -37,6 +39,7 @@ class DataFrame {
         void addRecord(const vector<string>& record);
         DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
+        void DFtoCSV(string csvName);
 
     private:
         // Concorrência 
