@@ -115,11 +115,11 @@ int main() {
 
     // Teste
     cout << "\nTeste para transactions.csv\n";
-    DataFrame *df_teste = readCSV("teste.csv", 5);
+    DataFrame *df_teste = readCSV("teste.csv", NUM_THREADS);
 
     cout << "\nTeste groupby_mean para transactions.csv\n";
-    DataFrame df_grouped_t = groupby_mean(*df_teste, "account_id", "amount", NUM_THREADS);
-    //df_grouped_t.printDF();
+    DataFrame df_grouped_t = groupby_mean(*df_teste, "account_id", "amount", 1);
+    df_grouped_t.printDF();
 
     return 0;
 }

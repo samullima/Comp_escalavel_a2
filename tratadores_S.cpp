@@ -99,17 +99,13 @@ void func (int start, int end, DataFrame &df, vector<unordered_map<string, pair<
 }
 
 DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, int num_threads) {
-    num_threads = 8;
-    cout << "Entrou na func" << endl;
     int group_idx = df.getColumnIndex(group_col);
     int target_idx = df.getColumnIndex(target_col);
     int n = df.getNumRecords();
-    cout << "Criou os ints " << endl;
 
     // Passo 1: paraleliza a agregação local de sum e count
     vector<unordered_map<string, pair<float, int>>> local_maps(num_threads);
     vector<thread> threads;
-    cout << "Criou os vetores" << endl;
 
     int block_size = (n + num_threads - 1) / num_threads;
 
@@ -122,7 +118,6 @@ DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& tar
     }
 
     for (auto& th : threads) th.join();
-    cout << "Terminou threads " << endl;
 
     // Passo 2: unifica os mapas locais em um só
     unordered_map<string, pair<float, int>> global_map;
