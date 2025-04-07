@@ -10,6 +10,9 @@
 #include "threads.h"
 #include "df.h"
 #include "tratadores_S.h"
+#include <chrono>
+#include "csv_extractor.h"
+using namespace std::chrono;
 
 std::mutex cout_mutex;
 
@@ -111,50 +114,95 @@ namespace multiprocessing {
 
 // Exemplo de uso
 int main() {
-    vector<string> colNames1 = {"account_id", "amount"};
-    vector<string> colTypes1 = {"int", "float"};
+    // vector<string> colNames1 = {"account_id", "amount"};
+    // vector<string> colTypes1 = {"int", "float"};
 
-    DataFrame df1(colNames1, colTypes1);
+    // DataFrame df1(colNames1, colTypes1);
 
-    df1.addRecord({"1", "6000.0"});
-    df1.addRecord({"2", "7000.0"});
-    df1.addRecord({"3", "3000.0"});
-    df1.addRecord({"4", "500.0"});
-    df1.addRecord({"2", "1000.0"});
-    df1.addRecord({"3", "5000.0"});
-    df1.addRecord({"1", "15000.0"});
-    df1.addRecord({"1", "700.0"});
+    // df1.addRecord({"1", "6000.0"});
+    // df1.addRecord({"2", "7000.0"});
+    // df1.addRecord({"3", "3000.0"});
+    // df1.addRecord({"4", "500.0"});
+    // df1.addRecord({"2", "1000.0"});
+    // df1.addRecord({"3", "5000.0"});
+    // df1.addRecord({"1", "15000.0"});
+    // df1.addRecord({"1", "700.0"});
 
-    vector<string> colNames2 = {"account_id", "current_balance"};
-    vector<string> colTypes2 = {"int", "float"};
+    // vector<string> colNames2 = {"account_id", "current_balance"};
+    // vector<string> colTypes2 = {"int", "float"};
 
-    DataFrame df2(colNames2, colTypes2);
+    // DataFrame df2(colNames2, colTypes2);
 
-    df2.addRecord({"1", "5000.0"});
-    df2.addRecord({"2", "15000.0"});
-    df2.addRecord({"3", "8000.0"});
-    df2.addRecord({"4", "2000.0"});
+    // df2.addRecord({"1", "5000.0"});
+    // df2.addRecord({"2", "15000.0"});
+    // df2.addRecord({"3", "8000.0"});
+    // df2.addRecord({"4", "2000.0"});
 
-    ThreadPool tp(4); // Cria a pool de threads
+    // ThreadPool tp(4); // Cria a pool de threads
 
-    DataFrame media = multiprocessing::groupby_mean(df1, "account_id", "amount", tp);
-    DataFrame join = multiprocessing::join_by_key(media, df2, "account_id", tp);
-    DataFrame resultado = multiprocessing::classify_accounts_parallel(join, "A_account_id", "A_mean_amount", "B_current_balance", tp);
+    // DataFrame media = multiprocessing::groupby_mean(df1, "account_id", "amount", tp);
+    // DataFrame join = multiprocessing::join_by_key(media, df2, "account_id", tp);
+    // DataFrame resultado = multiprocessing::classify_accounts_parallel(join, "A_account_id", "A_mean_amount", "B_current_balance", tp);
 
-    // Espera pequena para garantir execução completa (ou substitua com método join da ThreadPool se tiver)
-    this_thread::sleep_for(std::chrono::milliseconds(200));
+    // // Espera pequena para garantir execução completa (ou substitua com método join da ThreadPool se tiver)
+    // this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    cout << "[MAIN] Média por conta:\n";
-    media.printDF();
-    std::cout << std::flush;
+    // cout << "[MAIN] Média por conta:\n";
+    // media.printDF();
+    // std::cout << std::flush;
 
-    std::cout << "[MAIN] Join:\n";
-    join.printDF();
-    std::cout << std::flush;
+    // std::cout << "[MAIN] Join:\n";
+    // join.printDF();
+    // std::cout << std::flush;
 
-    std::cout << "[MAIN] Resultado final:\n";
-    resultado.printDF();
-    std::cout << std::flush;
+    // std::cout << "[MAIN] Resultado final:\n";
+    // resultado.printDF();
+    // std::cout << std::flush;
+
+    string file1 = "accounts.csv";
+    string file2 = "transactions.csv";
+
+    vector<int> thread_counts = {1, 2, 3, 4, 5};
+
+    for (int num_threads : thread_counts) {
+        cout << "\n======================" << endl;
+        cout << "   Threads: " << num_threads << endl;
+        cout << "======================\n" << endl;
+
+        ThreadPool tp(num_threads);
+
+        auto start = high_resolution_clock::now();
+        DataFrame* df1 = readCSV(file1, num_threads, {"int", "int", "float", "string", "string", "string"});
+        DataFrame* df2 = readCSV(file2, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
+        auto end = high_resolution_clock::now();
+
+        cout << "[readCSV] Tempo: "
+             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+
+        start = high_resolution_clock::now();
+        DataFrame media = multiprocessing::groupby_mean(*df2, "account_id", "amount", tp);
+        end = high_resolution_clock::now();
+        cout << "[groupby_mean] Tempo: "
+             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+        media.DFtoCSV("media" + to_string(num_threads));
+
+        start = high_resolution_clock::now();
+        DataFrame join = multiprocessing::join_by_key(media, *df1, "account_id", tp);
+        end = high_resolution_clock::now();
+        cout << "[join_by_key] Tempo: "
+             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+        join.DFtoCSV("join" + to_string(num_threads));
+
+        start = high_resolution_clock::now();
+        DataFrame resultado = multiprocessing::classify_accounts_parallel(join, "A_account_id", "A_mean_amount", "B_current_balance", tp);
+        end = high_resolution_clock::now();
+        cout << "[classify_accounts_parallel] Tempo: "
+             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+        resultado.DFtoCSV("resultado" + to_string(num_threads));
+        
+        delete df1;
+        delete df2;
+    }
 
     return 0;
 }
