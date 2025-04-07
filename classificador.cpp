@@ -6,8 +6,14 @@
 #include <mutex>
 #include <thread>
 #include <memory>
+#include <future>
 
+#include "df.h"
+#include "threads.h"
+
+/*
 using VariantType = std::variant<int, double, std::string>;
+using namespace std;
 
 struct DF {
     std::vector<std::vector<VariantType>> columns;
@@ -98,7 +104,7 @@ DF classify_accounts_parallel(DF& df, const string& id, const string& class_firs
     }
 
     return result;
-}
+}*/
 
 // // Função principal que retorna um novo DF com account_id e categoria
 // DF classify_accounts_parallel(DF& df) {
@@ -173,26 +179,123 @@ DF classify_accounts_parallel(DF& df, const string& id, const string& class_firs
 //     return result;
 // }
 
+namespace multiprocessing {
+
+    DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const string& class_first, const string& class_sec, ThreadPool& tp) {
+        // Toma os índices das colunas relevantes
+        int id_idx    = df.getColumnIndex(id);
+        int media_idx = df.getColumnIndex(class_first);
+        int saldo_idx = df.getColumnIndex(class_sec);
+    
+        // Busca as colunas relevantes
+        auto id_col    = df.getColumn(id_idx);
+        auto media_col = df.getColumn(media_idx);
+        auto saldo_col = df.getColumn(saldo_idx);
+    
+        int numRecords = df.getNumRecords();
+        int num_threads = tp.size();
+        int block_size = (numRecords + num_threads - 1) / num_threads;
+    
+        // Promises comunicação de threads
+        vector<future<vector<ElementType>>> futures_ids;
+        vector<future<vector<ElementType>>> futures_categorias;
+    
+        // Para cada thread
+        for (int t = 0; t < num_threads; ++t) {
+            // Define os limites do bloco
+            int start = t * block_size;
+            int end = min(start + block_size, numRecords);
+            
+            // Define vetor de promessas para clientes e suas categorias
+            promise<vector<ElementType>> p_ids;
+            promise<vector<ElementType>> p_categorias;
+            futures_ids.push_back(p_ids.get_future());
+            futures_categorias.push_back(p_categorias.get_future());
+    
+            // Cada thread processa uma lambda, que processa um bloco
+            tp.enqueue(
+                [start, end, &id_col, &media_col, &saldo_col, p_ids = move(p_ids), p_categorias = move(p_categorias)]() mutable {
+                    // Cria um vetor local pra armazenar resultados do bloco
+                    vector<ElementType> ids, categorias;
+        
+                    // Para cada entrada do blobo
+                    for (int i = start; i < end; ++i) {
+                        // Verifica se os valores estão no formato certo
+                        if (!holds_alternative<int>(id_col[i]) || 
+                            !holds_alternative<float>(media_col[i]) || 
+                            !holds_alternative<float>(saldo_col[i]))
+                            continue;
+                        
+                        // Se está tudo certo, extrai os valores 
+                        int account_id = get<int>(id_col[i]);
+                        float media = get<float>(media_col[i]);
+                        float saldo = get<float>(saldo_col[i]);
+        
+                        // Classifica pessoas de acordo com as médias
+                        string categoria;
+                        if (media > 5000) {
+                            categoria = "A";
+                        } else if (media >= 1000 && media <= 5000) {
+                            categoria = (saldo > 10000) ? "B" : "C";
+                        } else {
+                            categoria = "D";
+                        }
+        
+                        // E armazena os resultados
+                        ids.push_back(account_id);
+                        categorias.push_back(categoria);
+                    }
+        
+                    p_ids.set_value(move(ids));
+                    p_categorias.set_value(move(categorias));
+                }
+            );
+        }
+    
+        // Espera todas as threads e junta os resultados
+        vector<string> colNames = {"account_id", "categoria"};
+        vector<string> colTypes = {"int", "string"};
+        DataFrame result(colNames, colTypes);
+    
+        // Para cada thread
+        for (int t = 0; t < num_threads; ++t) {
+            // Pegue os resultados dos futuros
+            auto ids = futures_ids[t].get();
+            auto categorias = futures_categorias[t].get();
+    
+            for (size_t i = 0; i < ids.size(); ++i) {
+                result.columns[0].push_back(ids[i]);
+                result.columns[1].push_back(categorias[i]);
+                result.numRecords++;
+            }
+        }
+    
+        return result;
+    }
+    
+    }    
+
 // Exemplo de uso
 int main() {
-    DF df(2); // duas threads
+    int num_threads = 2;
+    vector<string> colNames = {"account_id", "media", "current_balance"};
+    vector<string> colTypes = {"int", "float", "float"};
 
-    df.add_column("account_id");
-    df.add_column("media");
-    df.add_column("current_balance");
+    DataFrame df(colNames, colTypes);
 
-    df.columns[df.idxColumns["account_id"]] = {1, 2, 3, 4, 20, 5, 15, 30};
-    df.columns[df.idxColumns["media"]] = {6000.0, 7000.0, 3000.0, 500.0, 1000.0, 5000.0, 15000.0, 700.0};
-    df.columns[df.idxColumns["current_balance"]] = {5000.0, 15000.0, 8000.0, 2000.0, 1000.0, 2000.0, 500.0, 3000.0};
+    // Adiciona dados manualmente
+    vector<ElementType> ids = {1, 2, 3, 4, 20, 5, 15, 30};
+    vector<ElementType> medias = {6000.0f, 7000.0f, 3000.0f, 500.0f, 1000.0f, 5000.0f, 15000.0f, 700.0f};
+    vector<ElementType> saldos = {5000.0f, 15000.0f, 8000.0f, 2000.0f, 1000.0f, 2000.0f, 500.0f, 3000.0f};
 
-    DF resultado = classify_accounts_parallel(df);
-    size_t idx_id = resultado.idxColumns["account_id"];
-    size_t n = resultado.columns[idx_id].size();
-    for (size_t i = 0; i < n; ++i) {
-        std::cout << "ID: " << std::get<int>(resultado.columns[resultado.idxColumns["account_id"]][i])
-                  << " | Categoria: " << std::get<std::string>(resultado.columns[resultado.idxColumns["categoria"]][i])
-                  << '\n';
-    }
+    df.columns[0] = ids;
+    df.columns[1] = medias;
+    df.columns[2] = saldos;
+    df.numRecords = ids.size(); // todos têm o mesmo tamanho
+
+    ThreadPool tp(4); // 4 threads
+    DataFrame resultado = multiprocessing::classify_accounts_parallel(df, "account_id", "media", "current_balance", tp);
+    resultado.printDF();
 
     return 0;
 }
