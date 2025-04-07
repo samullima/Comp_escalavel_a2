@@ -155,16 +155,6 @@ DataFrame DataFrame::getRecords(const vector<int>& indexes) const {
     return dfResult;
 }
 
-string variantToString(const ElementType& val) {
-    /*Função auxiliar para alterar o tipo variant para string.*/
-    return visit([](const auto& arg) -> string {
-        if constexpr (is_same_v<decay_t<decltype(arg)>, string>)
-            return arg;
-        else
-            return to_string(arg);
-    }, val);
-}
-
 void DataFrame::printDF(){
     /* 
     Realiza o print de um DataFrame. 
