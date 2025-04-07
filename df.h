@@ -40,6 +40,27 @@ class DataFrame {
         DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
         void DFtoCSV(string csvName);
+        
+        // Retorna o registro (linha) i como vetor de ElementType
+        vector<ElementType> getRecord(int i) const;
+
+        // Retorna os nomes das colunas
+        vector<string> getColumnNames() const;
+
+        // Retorna o número de colunas
+        int getNumCols() const;
+
+        // Retorna a coluna i como vetor de ElementType
+        vector<ElementType> getColumn(int i) const;
+
+        // Retorna o mapa de tipos das colunas
+        unordered_map<string, string> getColumnTypes() const;
+
+        // Retorna o número de registros (linhas)
+        int getNumRecords() const;
+
+        // Retorna o índice da coluna
+        int getColumnIndex(const string&) const;
 
     private:
         // Concorrência 

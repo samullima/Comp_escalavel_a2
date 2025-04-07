@@ -266,3 +266,36 @@ void DataFrame::DFtoCSV(string csvName) {
 
     outFile.close();
 }
+
+vector<ElementType> DataFrame::getRecord(int i) const {
+    vector<ElementType> record;
+    for (int j = 0; j < numCols; ++j) {
+        record.push_back(columns[j][i]);
+    }
+    return record;
+}
+
+vector<string> DataFrame::getColumnNames() const {
+    return colNames;
+}
+
+int DataFrame::getNumCols() const {
+    return numCols;
+}
+
+vector<ElementType> DataFrame::getColumn(int i) const {
+    return columns[i];
+}
+
+unordered_map<string, string> DataFrame::getColumnTypes() const {
+    return colTypes;
+}
+
+int DataFrame::getNumRecords() const {
+    return numRecords;
+}
+
+int DataFrame::getColumnIndex(const string& colName) const {
+    auto it = idxColumns.find(colName);
+    return it->second;
+}
