@@ -5,7 +5,7 @@ from datetime import timedelta
 
 fake = Faker()
 
-def gerar_transacoes(n_transactions=1000000, n_accounts=1000):
+def gerar_transacoes(n_transactions=100000, n_accounts=1000):
     tipos_transacoes = ["depósito", "retirada", "transferência", "pagamento"]
     dados = []
 
@@ -36,5 +36,5 @@ def gerar_transacoes(n_transactions=1000000, n_accounts=1000):
     return pd.DataFrame(dados)
 
 
-df_transacoes = gerar_transacoes(1000000)
+df_transacoes = gerar_transacoes(100000, 1000)
 df_transacoes.to_csv("transactions.csv", index=False)

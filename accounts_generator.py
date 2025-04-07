@@ -6,14 +6,14 @@ fake = Faker()
 
 def gerar_contas(n_accounts=1000):
     status_conta = ["pendente", "bloqueada", "desbloqueada"]
-    account_type = ["corrente", "salário", "poupança"]
+    account_type_choices = ["corrente", "salário", "poupança"]
     dados = []
 
     for i in range(n_accounts): 
         customer_id = i  
         account_id = i  
-        current_balance = random.uniform(0.0, 15000.0)
-        account_type = random.choice(account_type)
+        current_balance = round(random.uniform(0.0, 15000.0), 2)
+        account_type = random.choice(account_type_choices)
         opening_date = fake.date_time_this_year()
         account_status = random.choice(status_conta)
 
@@ -29,5 +29,6 @@ def gerar_contas(n_accounts=1000):
     return pd.DataFrame(dados)
 
 
-df_transacoes = gerar_contas(1000000)
-df_transacoes.to_csv("accounts.csv", index=False)
+
+df_contas = gerar_contas(1000)
+df_contas.to_csv("accounts.csv", index=False)
