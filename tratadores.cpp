@@ -7,8 +7,10 @@
 #include <thread>
 #include <numeric>
 
+// Define um tipo variante que pode armazenar int, double ou string
 using VariantType = std::variant<int, double, std::string>;
 
+// Estrutura para armazenar um DataFrame (DF)
 struct DF {
     std::vector<std::vector<VariantType>> columns;
     std::vector<std::string> colNames;
@@ -18,6 +20,7 @@ struct DF {
 
     DF(size_t threads = 1) : num_threads(threads) {}
 
+    // Adiciona uma nova coluna ao DataFrame
     void add_column(const std::string& name) {
         colNames.push_back(name);
         idxColumns[name] = columns.size();
@@ -26,10 +29,12 @@ struct DF {
     }
 };
 
+// Função para calcular a soma dos valores por usuário
 DF sum_by_user(DF& df, const std::string& id_col, const std::string& value_col) {
-    size_t id_idx = df.idxColumns[id_col];
-    size_t val_idx = df.idxColumns[value_col];
+    size_t id_idx = df.idxColumns[id_col];// Índice da coluna de IDs
+    size_t val_idx = df.idxColumns[value_col]; // Índice da coluna de valores
 
+    // Trava as colunas relevantes
     std::lock_guard<std::mutex> lock_id(*df.column_mutexes[id_idx]);
     std::lock_guard<std::mutex> lock_val(*df.column_mutexes[val_idx]);
 
@@ -37,31 +42,33 @@ DF sum_by_user(DF& df, const std::string& id_col, const std::string& value_col) 
     auto& val_column = df.columns[val_idx];
     size_t numRecords = id_column.size();
 
-    std::unordered_map<int, double> result;
+    std::unordered_map<int, double> result;// Armazena a soma dos valores por usuário
     std::mutex result_mutex;
 
+    // Divide o processamento entre as threads
     size_t block_size = (numRecords + df.num_threads - 1) / df.num_threads;
     std::vector<std::thread> threads;
 
+    // Função executada por cada thread
     auto sum_task = [&](size_t start, size_t end) {
-        std::unordered_map<int, double> local_result;
+        std::unordered_map<int, double> local_result;// Soma local para cada thread
         for (size_t i = start; i < end && i < numRecords; ++i) {
             if (std::holds_alternative<int>(id_column[i]) &&
                 (std::holds_alternative<int>(val_column[i]) || std::holds_alternative<double>(val_column[i]))) {
 
-                int user_id = std::get<int>(id_column[i]);
+                int user_id = std::get<int>(id_column[i]);// Obtém o ID do usuário
                 double value = std::holds_alternative<int>(val_column[i]) ? std::get<int>(val_column[i])
                                                                            : std::get<double>(val_column[i]);
-                local_result[user_id] += value;
+                local_result[user_id] += value; // Acumula soma local
             }
         }
-
+        // Adiciona os resultados locais à soma global
         std::lock_guard<std::mutex> res_lock(result_mutex);
         for (const auto& [user_id, sum] : local_result) {
             result[user_id] += sum;
         }
     };
-
+    // Criação e execução das threads
     for (size_t i = 0; i < df.num_threads; ++i) {
         size_t start = i * block_size;
         size_t end = start + block_size;
@@ -84,67 +91,25 @@ DF sum_by_user(DF& df, const std::string& id_col, const std::string& value_col) 
     return df_result;
 }
 
-
+// Função para calcular a média dos valores por usuário
 DF mean_by_user(DF& df, const std::string& id_col, const std::string& value_col) {
-    size_t id_idx = df.idxColumns[id_col];
-    size_t val_idx = df.idxColumns[value_col];
+    DF df_sum = sum_by_user(df, id_col, value_col);// Calcula a soma por usuário
+    std::unordered_map<int, int> count_result; // Armazena a contagem de ocorrências por usuário
 
-    std::lock_guard<std::mutex> lock_id(*df.column_mutexes[id_idx]);
-    std::lock_guard<std::mutex> lock_val(*df.column_mutexes[val_idx]);
-
-    auto& id_column = df.columns[id_idx];
-    auto& val_column = df.columns[val_idx];
-    size_t numRecords = id_column.size();
-
-    std::unordered_map<int, double> sum_result;
-    std::unordered_map<int, int> count_result;
-    std::mutex result_mutex;
-
-    size_t block_size = (numRecords + df.num_threads - 1) / df.num_threads;
-    std::vector<std::thread> threads;
-
-    auto mean_task = [&](size_t start, size_t end) {
-        std::unordered_map<int, double> local_sum;
-        std::unordered_map<int, int> local_count;
-
-        for (size_t i = start; i < end && i < numRecords; ++i) {
-            if (std::holds_alternative<int>(id_column[i]) &&
-                (std::holds_alternative<int>(val_column[i]) || std::holds_alternative<double>(val_column[i]))) {
-
-                int user_id = std::get<int>(id_column[i]);
-                double value = std::holds_alternative<int>(val_column[i]) ? std::get<int>(val_column[i])
-                                                                           : std::get<double>(val_column[i]);
-
-                local_sum[user_id] += value;
-                local_count[user_id]++;
-            }
+    auto& id_column = df.columns[df.idxColumns[id_col]];
+    for (const auto& id : id_column) {
+        if (std::holds_alternative<int>(id)) {
+            count_result[std::get<int>(id)]++;
         }
-
-        std::lock_guard<std::mutex> lock(result_mutex);
-        for (const auto& [user_id, s] : local_sum) {
-            sum_result[user_id] += s;
-        }
-        for (const auto& [user_id, c] : local_count) {
-            count_result[user_id] += c;
-        }
-    };
-
-    for (size_t i = 0; i < df.num_threads; ++i) {
-        size_t start = i * block_size;
-        size_t end = start + block_size;
-        threads.emplace_back(mean_task, start, end);
-    }
-
-    for (auto& t : threads) {
-        t.join();
     }
 
     DF df_result;
     df_result.add_column("user_id");
     df_result.add_column("media");
 
-    for (const auto& [user_id, total] : sum_result) {
-        double mean_value = total / count_result[user_id];
+    for (size_t i = 0; i < df_sum.columns[0].size(); ++i) {
+        int user_id = std::get<int>(df_sum.columns[0][i]);
+        double mean_value = std::get<double>(df_sum.columns[1][i]) / count_result[user_id];
         df_result.columns[0].push_back(user_id);
         df_result.columns[1].push_back(mean_value);
     }
@@ -152,34 +117,7 @@ DF mean_by_user(DF& df, const std::string& id_col, const std::string& value_col)
     return df_result;
 }
 
-
-void select_columns(const DF& df, const std::string& col1, const std::string& col2) {
-    if (df.idxColumns.find(col1) == df.idxColumns.end() || df.idxColumns.find(col2) == df.idxColumns.end()) {
-        std::cerr << "Erro: Coluna(s) não encontrada(s) no DataFrame.\n";
-        return;
-    }
-
-    size_t idx1 = df.idxColumns.at(col1);
-    size_t idx2 = df.idxColumns.at(col2);
-
-    const auto& c1 = df.columns[idx1];
-    const auto& c2 = df.columns[idx2];
-
-    if (c1.empty() || c2.empty()) {
-        std::cerr << "Erro: Uma ou ambas as colunas estão vazias.\n";
-        return;
-    }
-
-    size_t n = std::min(c1.size(), c2.size());
-
-    std::cout << "\nSelecionando colunas: " << col1 << " e " << col2 << "\n";
-    for (size_t i = 0; i < n; ++i) {
-        std::visit([](auto&& val1) { std::cout << val1 << "\t"; }, c1[i]);
-        std::visit([](auto&& val2) { std::cout << val2 << "\n"; }, c2[i]);
-    }
-}
-
-
+// Função para juntar dois DataFrames por chave
 DF join_by_key(const DF& df1, const DF& df2, const std::string& key_col) {
     DF result(df1.num_threads);
 
@@ -199,11 +137,11 @@ DF join_by_key(const DF& df1, const DF& df2, const std::string& key_col) {
     }
 
     for (const auto& name : df1.colNames) {
-        result.add_column("A_" + name);
+        result.add_column(name);
     }
     for (const auto& name : df2.colNames) {
         if (name != key_col) {
-            result.add_column("B_" + name);
+            result.add_column(name);
         }
     }
 
@@ -268,9 +206,9 @@ int main() {
     DF df_joined = join_by_key(df_sum, df_mean, "user_id");
 
     std::cout << "\n>> DataFrame - Join (Soma + Média):\n";
-    size_t idx_id = df_joined.idxColumns["A_user_id"];
-    size_t idx_soma = df_joined.idxColumns["A_soma"];
-    size_t idx_media = df_joined.idxColumns["B_media"];
+    size_t idx_id = df_joined.idxColumns["user_id"];
+    size_t idx_soma = df_joined.idxColumns["soma"];
+    size_t idx_media = df_joined.idxColumns["media"];
     
     size_t n = df_joined.columns[idx_id].size();
     for (size_t i = 0; i < n; ++i) {

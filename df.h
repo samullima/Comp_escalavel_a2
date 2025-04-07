@@ -1,11 +1,16 @@
+#ifndef DF_H
+#define DF_H
+
 #include <vector>
 #include <string>
 #include <variant>
 #include <unordered_map>
 #include <mutex>
 #include <thread>
-
-// TODO : adicionar mecanismos de concorrência básicos
+#include <deque>
+#include <fstream>
+#include <sstream>
+#include <memory>
 
 using namespace std;
 using ElementType = variant<int, float, bool, string>; // Tipo genérico para os dados 
@@ -18,6 +23,7 @@ class DataFrame {
     public:
         // Construtor
         DataFrame(const vector<string>& colNames, const vector<string>& colTypes);
+        DataFrame(const DataFrame& other);
 
         // Destrutor
         ~DataFrame();
@@ -25,7 +31,7 @@ class DataFrame {
         vector<vector<ElementType>> columns; 
 
         // Metadados
-        int numRecords = 0;
+        int numRecords = 0; 
         int numCols = 0; 
         vector<string> colNames;
         unordered_map<string, int> idxColumns;
@@ -34,9 +40,10 @@ class DataFrame {
         // Métodos
         void addColumn(const vector<ElementType>& col, string colName, string colType);
         void addRecord(const vector<string>& record);
-        DataFrame getRecords(const vector<int>& indexes);
+        DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
-
+        void DFtoCSV(string csvName);
+        
         // Retorna o registro (linha) i como vetor de ElementType
         vector<ElementType> getRecord(int i) const;
 
@@ -60,8 +67,10 @@ class DataFrame {
 
     private:
         // Concorrência 
-        // mutex mutexDF;
-        // vector<mutex> columnMutexes;
-        // vector<mutex> rowMutexes;
+        mutable mutex mutexDF;
+        deque<mutex> columnMutexes;
+        deque<mutex> rowMutexes;
 };
-    
+
+string variantToString(const ElementType& val);
+#endif
