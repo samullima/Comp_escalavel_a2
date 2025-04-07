@@ -5,15 +5,15 @@ from datetime import timedelta
 
 fake = Faker()
 
-def gerar_transacoes(n=10000):
+def gerar_transacoes(n_transactions=1000000, n_accounts=1000):
     tipos_transacoes = ["depósito", "retirada", "transferência", "pagamento"]
     dados = []
 
-    for i in range(n):
+    for i in range(n_transactions):
         transation_id = i 
-        account_id = random.randint(100, 9999)
-        recipient_id = random.randint(1000, 9999)
-        amount = round(random.uniform(10.0, 5000.0), 2)
+        account_id = random.randint(0, n_accounts)
+        recipient_id = random.randint(0, n_accounts)
+        amount = round(random.uniform(10.0, 700.0), 2)
         tipo = random.choice(tipos_transacoes)
 
         # Geração de horários
