@@ -10,13 +10,7 @@
 using namespace std;
 
 template <typename T>
-T accumulate(const vector<T>& vec, T init) {
-    for (int i = 0; i < vec.size(); i++) {
-        T val = vec[i];
-        init += val;
-    }
-    return init;
-}
+T accumulate(const vector<T>& vec, T init);
 
 vector<int> filter_block_records(const class DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max);
 
@@ -31,7 +25,7 @@ class DataFrame join_by_key(const class DataFrame& left, const class DataFrame& 
 namespace multiprocessing
 {
     DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int num_threads, ThreadPool& pool);
-    DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, int num_threads, ThreadPool& pool);
+    DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, ThreadPool& pool);
     DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& key_col, ThreadPool& pool);
 }
 

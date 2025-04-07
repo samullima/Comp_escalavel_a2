@@ -13,7 +13,7 @@
 #include <sstream>
 #include <iostream>
 
-std::mutex cout_mutex; // Mutex para logs
+extern std::mutex cout_mutex; // Mutex para logs
 
 using namespace std;
 
