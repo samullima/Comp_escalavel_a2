@@ -1,3 +1,5 @@
+
+#include <iostream>
 #include <vector>
 #include <string>
 #include <variant>
@@ -11,6 +13,8 @@
 #include <fstream>
 #include <sstream>
 #include "df.h"
+#include <algorithm>
+#include <functional>
 
 using namespace std;
 using ElementType = variant<int, float, bool, string>; // Tipo possível das variáveis
@@ -209,6 +213,7 @@ void DataFrame::printDF(){
     }
 
     printSeparator();
+    // unlock()
 }
 
 void DataFrame::DFtoCSV(string csvName) {
@@ -289,3 +294,57 @@ int DataFrame::getColumnIndex(const string& colName) const {
     auto it = idxColumns.find(colName);
     return it->second;
 }
+
+
+// Driver Code Test
+
+// int main() {
+//     // Nome das colunas e tipo
+//     vector<string> colNames = {"ID", "Nome", "Salario"};
+//     vector<string> colTypes = {"int", "string", "float"};
+
+//     DataFrame df(colNames, colTypes);
+
+//     // Adição de registros
+//     df.addRecord({"1", "Camacho", "5000.5"});
+//     df.addRecord({"2", "Bebel", "6200.0"});
+//     df.addRecord({"3", "Yuri", "4700.75"});
+
+//     // Dataframe 
+//     cout << "\nDataFrame original:\n";
+//     df.printDF();
+
+//     // Criação de nova coluna bool
+//     vector<ElementType> isHighSalary = {true, true, false};
+//     string newColName = "Rico?";
+//     string newColType = "bool";
+
+//     // Adição da coluna bool
+//     df.addColumn(isHighSalary, newColName, newColType);
+
+//     // Print do df
+//     cout << "\nDataFrame com coluna bool adicionada:\n";
+//     df.printDF();
+
+//     // Impressão dos metadados
+//     cout << "\n--- Metadados do DataFrame ---\n";
+//     cout << "Num de registros: " << df.numRecords << endl;
+//     cout << "Num de colunas: " << df.numCols << endl;
+
+//     cout << "\nNomes das colunas:\n";
+//     for (const auto& name : df.colNames) {
+//         cout << "- " << name << endl;
+//     }
+
+//     cout << "\nIdx das colunas:\n";
+//     for (const auto& [name, idx] : df.idxColumns) {
+//         cout << "- " << name << ": " << idx << endl;
+//     }
+
+//     cout << "\nTipos das colunas:\n";
+//     for (const auto& [name, type] : df.colTypes) {
+//         cout << "- " << name << ": " << type << endl;
+//     }
+
+//     return 0;
+// }

@@ -1,3 +1,6 @@
+#ifndef DF_H
+#define DF_H
+
 #include <vector>
 #include <string>
 #include <variant>
@@ -78,3 +81,6 @@ inline string variantToString(const ElementType& val) {
             return to_string(arg);
     }, val);
 }
+
+string variantToString(const ElementType& val);
+#endif

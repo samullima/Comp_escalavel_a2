@@ -14,6 +14,7 @@
 
 #include "df.h"
 #include "threads.h"
+#include "tratadores_S.h"
 
 using namespace std;
 
@@ -86,54 +87,84 @@ DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&
     return filter_records_by_idxes(df, idx_validos);
 }
 
+void func (int start, int end, DataFrame &df, vector<unordered_map<string, pair<float, int>>> &local_maps, int t, int group_idx, int target_idx) {
+    unordered_map<string, pair<float, int>>& group_map = local_maps[t];
+    vector<ElementType> groupCol = df.getColumn(group_idx);
+    vector<ElementType> targetCol = df.getColumn(target_idx);
+    for (int i = start; i < end; ++i) {
+        string key = variantToString(groupCol[i]);
+        float value = get<float>(targetCol[i]);
+
+        pair<float, int>& entry = group_map[key];
+        entry.first += value; // soma
+        entry.second += 1;    // contagem
+    }
+    cout << "Thread " << t << " Completou a agrupagem" << endl;
+}
+
 DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, int num_threads) {
     int group_idx = df.getColumnIndex(group_col);
     int target_idx = df.getColumnIndex(target_col);
+    int n = df.getNumRecords();
 
-    unordered_map<string, vector<float>> groups;
+    // Passo 1: paraleliza a agregação local de sum e count
+    vector<unordered_map<string, pair<float, int>>> local_maps(num_threads);
+    vector<thread> threads;
 
-    for (int i = 0; i < df.getNumRecords(); ++i) {
-        string key = variantToString(df.getColumn(group_idx)[i]);
-        float value = get<float>(df.getColumn(target_idx)[i]);
-        groups[key].push_back(value);
+    int block_size = (n + num_threads - 1) / num_threads;
+
+    for (int t = 0; t < num_threads; ++t) {
+        int start = t * block_size;
+        int end = min(start + block_size, n);
+
+        threads.push_back(thread(func, start, end, ref(df), ref(local_maps), t, group_idx, target_idx));
+        cout << "Criou thread " << t << endl;
     }
 
-    // Cria o novo DataFrame com as médias
+    for (auto& th : threads) th.join();
+
+    // Passo 2: unifica os mapas locais em um só
+    unordered_map<string, pair<float, int>> global_map;
+
+    for (int t = 0; t < num_threads; ++t) {
+        for (const auto& [key, val] : local_maps[t]) {
+            auto& entry = global_map[key];
+            entry.first += val.first;
+            entry.second += val.second;
+        }
+    }
+
+    // Passo 3: constrói o novo DataFrame com as médias
     vector<string> colNames = {group_col, "mean_" + target_col};
     vector<string> colTypes = {"string", "float"};
     DataFrame result_df(colNames, colTypes);
 
-    // Mutex para sincronizar o acesso ao DataFrame final
+    // Também paralelizado
+    vector<pair<string, float>> results_buffer(global_map.size());
+    size_t i = 0;
+    for (const auto& [key, val] : global_map) {
+        results_buffer[i++] = {key, val.first / val.second};
+    }
+
+    // Paraleliza a inserção no result_df (com lock por segurança)
     mutex mtx;
+    size_t result_size = results_buffer.size();
+    block_size = (result_size + num_threads - 1) / num_threads;
+    threads.clear();
 
-    // Container de threads
-    vector<thread> threads;
-
-    // Converter unordered_map para vetor de pares para permitir fatiamento
-    vector<pair<string, vector<float>>> group_entries(groups.begin(), groups.end());
-    size_t total_groups = group_entries.size();
-    size_t block_size = (total_groups + num_threads - 1) / num_threads;
-
-    for (size_t t = 0; t < num_threads; ++t) {
+    for (int t = 0; t < num_threads; ++t) {
         size_t start = t * block_size;
-        size_t end = min(start + block_size, total_groups);
-
-        threads.emplace_back([start, end, &group_entries, &result_df, &mtx, &group_col, &target_col]() {
+        size_t end = min(start + block_size, result_size);
+    
+        threads.emplace_back([start, end, &results_buffer, &result_df, &mtx]() {
             for (size_t i = start; i < end; ++i) {
-                const string& key = group_entries[i].first;
-                const vector<float>& values = group_entries[i].second;
-                float mean = accumulate(values, 0.0f) / values.size();
-
-                mtx.lock();
-                result_df.addRecord({key, to_string(mean)});
-                mtx.unlock();
+                const auto& [key, mean] = results_buffer[i];
+                result_df.addRecord({key, to_string(mean)});  // <-- conversão aqui
             }
         });
-    }
+    }    
 
-    for (size_t i = 0; i < threads.size(); ++i) {
-        threads[i].join();
-    }
+    for (auto& th : threads) th.join();
 
     return result_df;
 }
