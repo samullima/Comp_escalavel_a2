@@ -68,3 +68,13 @@ class DataFrame {
         deque<mutex> columnMutexes;
         deque<mutex> rowMutexes;
 };
+
+inline string variantToString(const ElementType& val) {
+    /*Função auxiliar para alterar o tipo variant para string.*/
+    return visit([](const auto& arg) -> string {
+        if constexpr (is_same_v<decay_t<decltype(arg)>, string>)
+            return arg;
+        else
+            return to_string(arg);
+    }, val);
+}
