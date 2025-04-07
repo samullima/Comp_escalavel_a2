@@ -14,7 +14,6 @@
 
 #include "df.h"
 #include "threads.h"
-#include "tratadores_S.h"
 
 using namespace std;
 
@@ -509,9 +508,9 @@ int main() {
         ThreadPool tp(num_threads);
 
         auto start = high_resolution_clock::now();
-        DataFrame* df1 = readCSV(file1, num_threads);
-        DataFrame* df2 = readCSV(file2, num_threads);
-        DataFrame* df = readCSV(file3, num_threads);
+        DataFrame* df1 = readCSV(file1, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
+        DataFrame* df2 = readCSV(file2, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
+        DataFrame* df = readCSV(file3, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
         auto end = high_resolution_clock::now();
 
         cout << "[readCSV] Tempo total: "
