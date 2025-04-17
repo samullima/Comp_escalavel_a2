@@ -1,16 +1,17 @@
 #include <iostream>
 #include <chrono>
 
-#include "df.h"
-#include "threads.h"
-#include "csv_extractor.h"
+#include "include/df.h"
+#include "include/threads.h"
+#include "include/csv_extractor.h"
+#include "include/tratadores.h"
 
 using namespace std::chrono;
 
 int main() {
-    string file1 = "transaction_4_2.csv";
-    string file2 = "transaction_4_2.csv";
-    string file3 = "transactions.csv";
+    string file1 = "data/transactions/transaction_4_2.csv";
+    string file2 = "data/transactions/transaction_4_2.csv";
+    string file3 = "data/transactions/transactions.csv";
 
     vector<int> thread_counts = {1, 2, 4, 8, 16};
 
@@ -31,7 +32,7 @@ int main() {
              << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
 
         start = high_resolution_clock::now();
-        DataFrame joined = multiprocessing::join_by_key(*df1, *df2, "account_id", tp);
+        DataFrame joined = join_by_key(*df1, *df2, "account_id", tp);
         end = high_resolution_clock::now();
         cout << "[join_by_key] Tempo: "
              << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
@@ -43,13 +44,13 @@ int main() {
         };
 
         start = high_resolution_clock::now();
-        DataFrame filtered = multiprocessing::filter_records(*df, condition, num_threads, tp);
+        DataFrame filtered = filter_records(*df, condition, num_threads, tp);
         end = high_resolution_clock::now();
         cout << "[filter_records] Tempo: "
              << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
 
         start = high_resolution_clock::now();
-        DataFrame grouped = multiprocessing::groupby_mean(*df, "location", "amount", tp);
+        DataFrame grouped = groupby_mean(*df, "location", "amount", tp);
         end = high_resolution_clock::now();
         cout << "[groupby_mean] Tempo: "
              << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
