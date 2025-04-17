@@ -1,0 +1,12 @@
+transation_id,account_id,recipient_id,amount,type,time_start,location,processed_at
+0,1,9810,4467.93,retirada,13:10:01.847319,Abbottchester,13:10:49.847319
+1,1,4153,551.19,retirada,21:23:07.422366,Kevinmouth,21:23:38.422366
+2,1,3105,486.4,transferência,19:13:38.555012,Tuckermouth,19:13:49.555012
+3,1,7800,3252.91,depósito,00:22:18.200959,Dunnshire,00:22:27.200959
+4,1,2233,1685.29,pagamento,20:00:52.322962,Darrylland,20:01:37.322962
+5,1,5508,3673.97,transferência,17:23:28.805779,East Tonya,17:24:11.805779
+6,2,3598,2392.22,pagamento,12:20:24.086132,South Angelaview,12:20:37.086132
+7,2,8346,2275.45,retirada,14:21:27.248063,Mariaborough,14:21:59.248063
+8,2,3165,4005.08,retirada,00:06:39.100705,South Nancyshire,00:07:07.100705
+9,2,9419,883.95,transferência,07:02:25.002658,South Alvinbury,07:02:36.002658
+10,2,3727,2694.5,pagamento,15:31:00.725602,West Oliviaview,15:31:38.725602
