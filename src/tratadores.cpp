@@ -12,9 +12,9 @@
 #include <functional>
 #include <future>
 
-#include "include/df.h"
-#include "include/threads.h"
-#include "include/tratadores.h"
+#include "../include/df.h"
+#include "../include/threads.h"
+#include "../include/tratadores.h"
 
 using namespace std;
 
@@ -258,4 +258,40 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& 
 
     return result;
 }
- 
+
+DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& pool)
+{
+    int colIdx = df.getColumnIndex(colName);
+    vector<ElementType> column = df.getColumn(colIdx);
+
+    unordered_map<string, int> counts;
+
+    // Contagem
+    for (size_t i=0; i<column.size(); i++)
+    {
+        const ElementType& val = column[i];
+        string valStr = variantToString(val);
+        counts[valStr]++;
+    }
+
+    // Novas colunas
+    vector<ElementType> values;
+    vector<ElementType> frequencies;
+
+    // Adicionando valores às colunas
+    for (const auto& pair: counts)
+    {
+        values.push_back(pair.first);
+        frequencies.push_back(pair.second);
+    }
+
+    // Novo DataFrame
+    vector<string> colNames = {"value", "count"};
+    vector<string> colTypes = {"string", "int"};
+
+    DataFrame result(colNames, colTypes);
+    result.addColumn(values, "value", "string");
+    result.addColumn(frequencies, "count", "int");
+
+    return result;
+}
