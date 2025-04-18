@@ -14,6 +14,7 @@
 #include <queue>
 #include <numeric>
 #include <condition_variable>
+#include <cmath>
 
 #include "../include/df.h"
 #include "../include/threads.h"
@@ -119,6 +120,103 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
 	return result;
 }
 
+unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
+    unordered_map<string, ElementType> result;
+
+    DataFrame sorted_df = sort_by_column_parallel(df, colName, pool, true);
+    const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
+    int n = sorted_df.getNumRecords();
+
+    auto get_quantile_value = [&](double quantile) -> ElementType {
+        if (n == 0) return ElementType{};
+        double pos = quantile * (n - 1);
+        int lower = floor(pos);
+        int upper = ceil(pos);
+        if (lower == upper) {
+            return sorted_col[lower];
+        } else {
+            if (holds_alternative<int>(sorted_col[lower]) && holds_alternative<int>(sorted_col[upper])) {
+                double lower_val = get<int>(sorted_col[lower]);
+                double upper_val = get<int>(sorted_col[upper]);
+                return static_cast<int>((upper - pos) * lower_val + (pos - lower) * upper_val);
+            } else if (holds_alternative<float>(sorted_col[lower]) && holds_alternative<float>(sorted_col[upper])) {
+                float lower_val = get<float>(sorted_col[lower]);
+                float upper_val = get<float>(sorted_col[upper]);
+                return static_cast<float>((upper - pos) * lower_val + (pos - lower) * upper_val);
+            } else {
+                return sorted_col[lower]; // fallback
+            }
+        }
+    };
+
+    for (double q : quantiles) {
+        string label;
+        if (q == 0.0) label = "min";
+        else if (q == 1.0) label = "max";
+        else if (q == 0.5) label = "median";
+        else label = "Q" + to_string(static_cast<int>(q * 100));
+        result[label] = get_quantile_value(q);
+    }
+
+    return result;
+}
+
+double calculateMeanParallel(const DataFrame& df, const string& target_col, ThreadPool& pool) {
+    // Obtém o índice da coluna de interesse
+    int target_idx = df.getColumnIndex(target_col);
+    const auto& target_vec = df.columns[target_idx];
+
+    int total_records = df.getNumRecords();
+    int num_threads = pool.size();
+    int block_size = (total_records + num_threads - 1) / num_threads;
+
+    // Cria promessas e futuros
+    vector<promise<pair<double, int>>> promises(num_threads);
+    vector<future<pair<double, int>>> futures;
+
+    // Relacionamento entre promessas e futuros
+    for (auto& p : promises) {
+        futures.push_back(p.get_future());
+    }
+
+    // Divide o trabalho entre as threads
+    for (int t = 0; t < num_threads; ++t) {
+        int start = t * block_size;
+        int end = min(start + block_size, total_records);
+
+        pool.enqueue([&, start, end, t]() mutable {
+            double local_sum = 0.0;
+            int count = 0;
+
+            for (int i = start; i < end; ++i) {
+                if (holds_alternative<int>(target_vec[i])) {
+                    local_sum += get<int>(target_vec[i]);
+                    count++;
+                } else if (holds_alternative<float>(target_vec[i])) {
+                    local_sum += get<float>(target_vec[i]);
+                    count++;
+                }
+            }
+
+            // Define o resultado local da thread
+            promises[t].set_value(make_pair(local_sum, count));
+        });
+    }
+
+    // Fusão dos resultados: soma total e contagem total
+    double total_sum = 0.0;
+    int total_count = 0;
+
+    for (auto& f : futures) {
+        auto result = f.get(); // Obtém o resultado da thread (bloqueia até estar disponível)
+        total_sum += result.first;
+        total_count += result.second;
+    }
+
+    // Calcula a média
+    return total_count > 0 ? total_sum / total_count : 0.0;
+}
+
 // Teste simples
 int main() {
 	DataFrame df({"id", "nome", "idade"}, {"int", "string", "int"});
@@ -127,6 +225,9 @@ int main() {
 	df.addRecord({"2", "Carol", "28"});
 	df.addRecord({"5", "Dan", "22"});
 	df.addRecord({"4", "Eve", "35"});
+	df.addRecord({"6", "Eva", "38"});
+	df.addRecord({"7", "Avan", "18"});
+	df.addRecord({"8", "Ale", "40"});
 
 	cout << "Original:\n";
 	df.printDF();
@@ -136,6 +237,20 @@ int main() {
 
 	cout << "\nOrdenado por 'id':\n";
 	sorted.printDF();
+
+	vector<double> quantis = {0.0, 0.25, 0.5, 0.75, 1.0};
+    auto resultado = getQuantiles(df, "idade", quantis, pool);
+
+    cout << "\nQuantis para 'idade':\n";
+    for (const auto& [q, val] : resultado) {
+        cout << q << ": ";
+        visit([](auto&& v) { cout << v << '\n'; }, val);
+    }
+
+	double mean = calculateMeanParallel(df, "idade", pool);
+
+    // Imprimir a média
+    cout << "Média da coluna 'idade': " << mean << endl;
 
 	return 0;
 }
