@@ -311,9 +311,36 @@ int DataFrame::getColumnIndex(const string& colName) const {
     return it->second;
 }
 
+void DataFrame::changeColumnName(string pastName, string newName) {
+    lock_guard<mutex> lock(mutexDF);  
 
-// Driver Code Test
+    // Verificação da existência da coluna
+    if (idxColumns.find(pastName) == idxColumns.end()) {
+        throw invalid_argument("Coluna '" + pastName + "' não encontrada.");
+    }
 
+    // Verificação se o nome novo já existe
+    if (idxColumns.find(newName) != idxColumns.end()) {
+        throw invalid_argument("Já existe uma coluna com o nome '" + newName + "'.");
+    }
+
+    // Atualização de colNames
+    int index = idxColumns[pastName];
+    colNames[index] = newName;
+
+    // Atualização de idxColumns
+    idxColumns.erase(pastName); 
+    idxColumns[newName] = index;
+
+    // Atualização de colTypes
+    if (colTypes.find(pastName) != colTypes.end()) {
+        string type = colTypes[pastName];
+        colTypes.erase(pastName);
+        colTypes[newName] = type;
+    }
+}
+
+// //Driver Code Test
 // int main() {
 //     // Nome das colunas e tipo
 //     vector<string> colNames = {"ID", "Nome", "Salario"};
@@ -326,7 +353,7 @@ int DataFrame::getColumnIndex(const string& colName) const {
 //     df.addRecord({"2", "Bebel", "6200.0"});
 //     df.addRecord({"3", "Yuri", "4700.75"});
 
-//     // Dataframe 
+//     // DataFrame original
 //     cout << "\nDataFrame original:\n";
 //     df.printDF();
 
@@ -338,7 +365,7 @@ int DataFrame::getColumnIndex(const string& colName) const {
 //     // Adição da coluna bool
 //     df.addColumn(isHighSalary, newColName, newColType);
 
-//     // Print do df
+//     // Print do DataFrame
 //     cout << "\nDataFrame com coluna bool adicionada:\n";
 //     df.printDF();
 
@@ -360,6 +387,41 @@ int DataFrame::getColumnIndex(const string& colName) const {
 //     cout << "\nTipos das colunas:\n";
 //     for (const auto& [name, type] : df.colTypes) {
 //         cout << "- " << name << ": " << type << endl;
+//     }
+
+//     // Testes do changeColumnName
+//     cout << "\n\n--- Testes do changeColumnName ---\n";
+
+//     try {
+//         cout << "\nAlterando 'Salario' para 'SalarioBruto'...\n";
+//         df.changeColumnName("Salario", "SalarioBruto");
+//         cout << "Alteração feita com sucesso!\n";
+//     } catch (const exception& e) {
+//         cout << "Erro: " << e.what() << endl;
+//     }
+
+//     cout << "\nDataFrame após alteração do nome da coluna:\n";
+//     df.printDF();
+
+//     cout << "\nNomes das colunas após alteração:\n";
+//     for (const auto& name : df.colNames) {
+//         cout << "- " << name << endl;
+//     }
+
+//     // Tentativa de alterar nome de coluna inexistente
+//     try {
+//         cout << "\nTentando alterar coluna 'Bonus' para 'Premio'...\n";
+//         df.changeColumnName("Bonus", "Premio");
+//     } catch (const exception& e) {
+//         cout << "Erro: " << e.what() << endl;
+//     }
+
+//     // Tentativa de alterar para um nome já existente
+//     try {
+//         cout << "\nTentando alterar 'Nome' para 'ID'...\n";
+//         df.changeColumnName("Nome", "ID");
+//     } catch (const exception& e) {
+//         cout << "Erro: " << e.what() << endl;
 //     }
 
 //     return 0;
