@@ -50,6 +50,9 @@ class DataFrame {
         // Retorna os nomes das colunas
         vector<string> getColumnNames() const;
 
+        // Retorna o nome de uma coluna
+        string getColumnName(int idxColumn) const;
+
         // Retorna o número de colunas
         int getNumCols() const;
 

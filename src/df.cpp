@@ -279,6 +279,11 @@ vector<string> DataFrame::getColumnNames() const {
     return colNames;
 }
 
+string DataFrame::getColumnName(int idxColumn) const {
+    string colName = colNames[idxColumn];
+    return colName;
+}
+
 int DataFrame::getNumCols() const {
     return numCols;
 }

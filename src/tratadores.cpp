@@ -327,3 +327,50 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
 
     return result;
 }
+
+DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPool& pool)
+{
+    vector<string> hoursColumn;
+    int idx = df.getColumnIndex(colName);
+    vector<ElementType> timeColumn = df.getColumn(idx);
+    
+    // Aloca memória no vetor para o tamanho necessário
+    hoursColumn.reserve(timeColumn.size());
+
+    for (size_t i=0; i<timeColumn.size(); i++)
+    {
+        const auto& elem = timeColumn[i];
+        if (holds_alternative<string>(elem))
+        {
+            string timeStr =  get<string>(elem);
+
+            // Pega as duas primeiras posições HH
+            hoursColumn.push_back(timeStr.substr(0, 2));
+        }
+        else
+        {
+            hoursColumn.push_back("");
+        }
+    }
+
+    // Pegando tipo/nome da coluna original
+    int idxColumn = df.getColumnIndex(colName);
+    string typeColumn = df.getColumnType(idxColumn);
+    string nameColumn = df.getColumnName(idxColumn);
+
+    // Novo DataFrame com a coluna hour
+    vector<string> colNames = {nameColumn};
+    vector<string> colTypes = {typeColumn};
+
+    vector<ElementType> colHour;
+    for (size_t i=0; i<hoursColumn.size(); i++)
+    {
+        const auto& hour = hoursColumn[i];
+        colHour.push_back(hour);
+    }
+
+    DataFrame dfHours(colNames, colTypes);
+    dfHours.addColumn(colHour, nameColumn, typeColumn);
+
+    return dfHours;
+}

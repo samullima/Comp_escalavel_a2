@@ -100,20 +100,25 @@ int main() {
     // delete df_teste;
 
     vector<string> colName_ = {"time_start"};
-    vector<string> colType_ = {"int"};
+    vector<string> colType_ = {"string"};
     DataFrame df_5(colName_, colType_);
 
-    df_5.addRecord({"1"});
-    df_5.addRecord({"2"});
-    df_5.addRecord({"1"});
-    df_5.addRecord({"2"});
-    df_5.addRecord({"3"});
-    df_5.addRecord({"2"});
-    df_5.addRecord({"2"});
+    df_5.addRecord({"01:46:23"});
+    df_5.addRecord({"02:35:22"});
+    df_5.addRecord({"01:45:06"});
+    df_5.addRecord({"02:18:33"});
+    df_5.addRecord({"03:23:59"});
+    df_5.addRecord({"02:44:33"});
+    df_5.addRecord({"02:56:00"});
 
-    cout << "\nResultado do count:" << endl;
-    DataFrame d_count = count_values(df_5, "time_start", pool);
-    d_count.printDF();
+    cout << "\nResultado do get_hour_by_time:" << endl;
+    DataFrame df_hour = get_hour_by_time(df_5, "time_start", pool);
+    df_hour.printDF();
+
+    cout << "\nResultado do count_values:" << endl;
+    DataFrame df_count = count_values(df_hour, "time_start", pool);
+    df_count.printDF();
+
 
     return 0;
 }
