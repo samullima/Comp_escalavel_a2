@@ -8,6 +8,8 @@
 
 using namespace std::chrono;
 
+mutex cout_mutex;
+
 int main() {
     string file1 = "data/transactions/transaction_4_2.csv";
     string file2 = "data/transactions/transaction_4_2.csv";

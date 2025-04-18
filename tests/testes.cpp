@@ -1,10 +1,12 @@
 #include <iostream>
-#include "include/df.h"
-#include "include/tratadores.h"
-#include "include/csv_extractor.h"
-#include "include/threads.h"
+#include "../include/df.h"
+#include "../include/tratadores.h"
+#include "../include/csv_extractor.h"
+#include "../include/threads.h"
 
 using namespace std;
+
+mutex cout_mutex;
 
 int main() {
     const int NUM_THREADS = thread::hardware_concurrency();
@@ -88,13 +90,35 @@ int main() {
     cout << "Resultado do join:" << endl;
     df_result.printDF();
 
-    cout << "\nTeste para transactions.csv\n";
-    DataFrame* df_teste = readCSV("data/tests/teste.csv", pool);
+    // cout << "\nTeste para transactions.csv\n";
+    // DataFrame* df_teste = readCSV("data/tests/teste.csv", pool);
 
-    cout << "\nTeste groupby_mean para transactions.csv\n";
-    DataFrame df_grouped_t = groupby_mean(*df_teste, "account_id", "amount", pool);
-    df_grouped_t.printDF();
+    // cout << "\nTeste groupby_mean para transactions.csv\n";
+    // DataFrame df_grouped_t = groupby_mean(*df_teste, "account_id", "amount", pool);
+    // df_grouped_t.printDF();
 
-    delete df_teste;
+    // delete df_teste;
+
+    vector<string> colName_ = {"time_start"};
+    vector<string> colType_ = {"string"};
+    DataFrame df_5(colName_, colType_);
+
+    df_5.addRecord({"01:46:23"});
+    df_5.addRecord({"02:35:22"});
+    df_5.addRecord({"01:45:06"});
+    df_5.addRecord({"02:18:33"});
+    df_5.addRecord({"03:23:59"});
+    df_5.addRecord({"02:44:33"});
+    df_5.addRecord({"02:56:00"});
+
+    cout << "\nResultado do get_hour_by_time:" << endl;
+    DataFrame df_hour = get_hour_by_time(df_5, "time_start", pool);
+    df_hour.printDF();
+
+    cout << "\nResultado do count_values:" << endl;
+    DataFrame df_count = count_values(df_hour, "time_start", pool);
+    df_count.printDF();
+
+
     return 0;
 }
