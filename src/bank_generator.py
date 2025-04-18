@@ -2,6 +2,7 @@ import pandas as pd
 import random
 from faker import Faker
 from datetime import timedelta
+import sqlite3
 
 fake = Faker()
 
@@ -62,9 +63,12 @@ def gerar_transacoes(n_transactions=100000, n_accounts=1000):
 
 n_transacoes = 100000
 n_contas = 1000
+connection_obj = sqlite3.connect('data/data.db')
 
 df_contas = gerar_contas(n_contas)
 df_contas.to_csv("accounts.csv", index=False)
+df_contas.to_sql('accounts', connection_obj, if_exists='replace', index=False)
 
 df_transacoes = gerar_transacoes(n_transacoes, n_contas)
 df_transacoes.to_csv("transactions.csv", index=False)
+df_transacoes.to_sql('transactions', connection_obj, if_exists='replace', index=False)
