@@ -24,6 +24,11 @@ void task_3() {
     cout << "Tarefa leve concluída (depende das tarefas pesadas)" << endl;
 }
 
+void task_4() {
+    lock_guard<mutex> lock(cout_mutex);
+    cout << "Tarefa 4 concluída" << endl;
+}
+
 int main() {
     /*
     Se tudo der certo, as duas primeiras vão executar primeiro que a terceira :)
@@ -37,6 +42,8 @@ int main() {
     // Task dependente das outras 
     set<int> dependencies = {1, 2};  
     pool.enqueue(3, task_3, dependencies); 
+
+    pool.enqueue(4, task_4);
 
     return 0;
 }

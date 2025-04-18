@@ -71,15 +71,16 @@ private:
         set<int> dependencies;          // Dependências das outras tasks (IDs)
     };
 
-    vector<thread> workers;             // Threads trabalhadoras
-    unordered_map<int, Task> tasks;     // Vetor de funções a serem realizadas
-    queue<int> ready_tasks;             // IDs prontos para execução
-    mutable mutex queue_mutex;          // Mutex para controlar o acesso à fila de tasks
-    condition_variable condition;       // Variável de condição para a sincronização
-    atomic<bool> stop{false};           // Flag para parar o pool de threads  
-    atomic<size_t> activeThreads{0};    // Num. Threads Ativas
+    vector<thread> workers;                  // Threads trabalhadoras
+    unordered_map<int, Task> tasks;          // Hash de tasks indexadas por ID
+    unordered_map<int, set<int>> dependents; // Mapeia cada task para quem depende dela
+    queue<int> readyTasks;                   // IDs prontos para execução
+    mutable mutex queueMutex;                // Mutex para controlar o acesso à fila de tasks
+    condition_variable condition;            // Variável de condição para a sincronização
+    atomic<bool> stop{false};                // Flag para parar o pool de threads  
+    atomic<size_t> activeThreads{0};         // Num. Threads Ativas
 
-    void task_finished(int finished_id);
+    void task_finished(int finishedID);
 };
 
 // Construtor
@@ -89,32 +90,32 @@ inline ThreadPool::ThreadPool(size_t numThreads) {
             {
                 // Criação das Threads
                 lock_guard<mutex> lock(cout_mutex);
-                stringstream ss;
-                ss << "[POOL INIT] Thread criada: ID = " << this_thread::get_id() << endl;
-                cout << ss.str() << endl;
+                // stringstream ss;
+                // ss << "[POOL INIT] Thread criada: ID = " << this_thread::get_id() << endl;
+                // cout << ss.str() << endl;
             }
 
             while (true) {
-                int task_id;
+                int taskID;
                 {
-                    unique_lock<mutex> lock(queue_mutex);
+                    unique_lock<mutex> lock(queueMutex);
 
                     // Espera até que haja uma task ou o pool seja parado
                     condition.wait(lock, [this] {
-                        return stop || !ready_tasks.empty();
+                        return stop || !readyTasks.empty();
                     });
 
                     // Se o pool for parado e não houver tasks, sai
-                    if (stop && ready_tasks.empty())
+                    if (stop && readyTasks.empty())
                         return;
 
-                    task_id = ready_tasks.front();  // Pega a ID da task pronta
-                    ready_tasks.pop();              // Remove da fila
+                    taskID = readyTasks.front();    // Pega a ID da task pronta
+                    readyTasks.pop();               // Remove da fila
                     activeThreads++;                // Aumenta o num. de threads ativas
                 }
 
-                tasks[task_id].func();  // Executa a função associada
-                task_finished(task_id); // Marca como terminada
+                tasks[taskID].func();   // Executa a função associada
+                task_finished(taskID);  // Marca como terminada
                 activeThreads--;        // Temos uma thread livre agora
             }
         });
@@ -127,41 +128,54 @@ void ThreadPool::enqueue(int id, F&& task_func, const set<int>& dependencies) {
     Aciona na fila uma task com ID e dependências (se existir).
     */
     {
-        lock_guard<mutex> lock(queue_mutex);
+        lock_guard<mutex> lock(queueMutex);
 
         // Adiciona a task
         tasks[id] = Task{MoveOnlyFunction<void()>(forward<F>(task_func)), dependencies};
 
+        // Atualiza dependents: para cada dependência da task, anota que ela depende
+        for (int dep : dependencies) {
+            dependents[dep].insert(id);
+        }
+
         // Se não há dependências, a task pode ser executada imediatamente
         if (dependencies.empty()) {
-            ready_tasks.push(id); 
+            readyTasks.push(id); 
             condition.notify_one();
         }
     }
 }
 
-inline void ThreadPool::task_finished(int finished_id) {
+inline void ThreadPool::task_finished(int finishedID) {
     /*
     Função chamada quando uma task termina. Ela remove a task concluída das dependências das outras.
     */
-    lock_guard<mutex> lock(queue_mutex);
+    lock_guard<mutex> lock(queueMutex);
 
-    // Para cada task, verifica se a task concluída (finished_id) é uma de suas dependências
-    for (auto& [id, task] : tasks) {
-        if (task.dependencies.erase(finished_id)) {
-            // Remove finished_id das dependências de alguma task
-            if (task.dependencies.empty()) {
-                ready_tasks.push(id);     // Agora pode executar
-                condition.notify_one();   // Notifica alguma thread livre
+    auto it = dependents.find(finishedID);
+
+    if (it != dependents.end()) {
+        for (int dependentID : it->second) {
+            auto& dependentTask = tasks[dependentID];
+            dependentTask.dependencies.erase(finishedID);
+
+            if (dependentTask.dependencies.empty()) {
+                readyTasks.push(dependentID);
+                condition.notify_one();
             }
         }
+        // Limpa dependentes dessa task terminada
+        dependents.erase(it); 
     }
+
+    // Remove a task concluída da memória
+    tasks.erase(finishedID);
 }
 
 // Destrutor
 inline ThreadPool::~ThreadPool() {
     {
-        lock_guard<mutex> lock(queue_mutex);
+        lock_guard<mutex> lock(queueMutex);
         stop = true;
     }
     // Notifica todas as threads para saírem
