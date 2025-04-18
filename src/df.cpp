@@ -291,6 +291,12 @@ unordered_map<string, string> DataFrame::getColumnTypes() const {
     return colTypes;
 }
 
+string DataFrame::getColumnType(int idxColumn) const {
+    string colName = colNames[idxColumn];
+    auto it = colTypes.find(colName);
+    return it->second;
+}
+
 int DataFrame::getNumRecords() const {
     return numRecords;
 }

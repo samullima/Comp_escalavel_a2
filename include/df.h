@@ -59,6 +59,9 @@ class DataFrame {
         // Retorna o mapa de tipos das colunas
         unordered_map<string, string> getColumnTypes() const;
 
+        // Retorna o tipo de uma coluna
+        string getColumnType(int idxColumn) const;
+
         // Retorna o número de registros (linhas)
         int getNumRecords() const;
 

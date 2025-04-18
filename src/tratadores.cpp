@@ -274,7 +274,7 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
         size_t end = min(start + blockSize, dataSize);
         if (start >= end) break;
 
-        // Criando uma promise para um futuro
+        // Criando uma promise para um future
         auto promise = make_shared<std::promise<unordered_map<string, int>>>();
         futures.push_back(promise->get_future());
 
@@ -287,6 +287,7 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
                 string valStr = variantToString(val);
                 localCounts[valStr]++;
             }
+            // Desbloqueia o future e envia o valor a ele
             promise->set_value(move(localCounts));
         });
     }
@@ -294,9 +295,10 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
      // Junta os resultados
      unordered_map<string, int> counts;
      for (auto& f : futures) {
-         unordered_map<string, int> localMap = f.get();
-         for (const auto& pair : localMap) {
-             counts[pair.first] += pair.second;
+        // f.get() é bloqueado até que a thred mande o valor da promise ao future
+        unordered_map<string, int> localMap = f.get();
+        for (const auto& pair : localMap) {
+            counts[pair.first] += pair.second;
          }
      }
 
@@ -311,12 +313,16 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
         frequencies.push_back(pair.second);
     }
 
+    // Pegando tipo da coluna original
+    int idxColumn = df.getColumnIndex(colName);
+    string typeColumn = df.getColumnType(idxColumn);
+
     // Novo DataFrame
     vector<string> colNames = {"value", "count"};
-    vector<string> colTypes = {"string", "int"};
+    vector<string> colTypes = {typeColumn, "int"};
 
     DataFrame result(colNames, colTypes);
-    result.addColumn(values, "value", "string");
+    result.addColumn(values, "value", typeColumn);
     result.addColumn(frequencies, "count", "int");
 
     return result;
