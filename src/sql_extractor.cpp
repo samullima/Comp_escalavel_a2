@@ -22,7 +22,7 @@ static int callback(void *data, int argc, char **argv, char **azColName)
         cout << "Columns: ";
         for(int i = 0; i < argc; i++) {
             cout << azColName[i] << " ";
-            df->colNames[i] = azColName[i];
+            df->changeColumnName("col" + to_string(i), azColName[i]);
         }
         *columnsDone = true;
     }
@@ -31,7 +31,6 @@ static int callback(void *data, int argc, char **argv, char **azColName)
     for(int i = 0; i < argc; i++) {
         if (argv[i]) {
             record[i] = argv[i];
-            cout << record[i] << endl;
         } else {
             record[i] = "NULL";
         }
@@ -40,10 +39,6 @@ static int callback(void *data, int argc, char **argv, char **azColName)
     (*linesRead).push_back(record);
     (*mtxDB).unlock();
     // df->addRecord(record);
-
-    for(int i = 0; i < argc; i++) {
-        cout << azColName[i] << " = " << (argv[i] ? argv[i] : "NULL") << endl;
-    }
 
     return 0;
 }
@@ -126,8 +121,11 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
     sql = "SELECT * FROM " + tableName + ";";
 
     vector<thread> threads;
-
-    DataFrame df(colTypes, colTypes);
+    vector<string> colNames;
+    for(int i = 0; i < colTypes.size(); i++) {
+        colNames.push_back("col" + to_string(i));
+    }
+    DataFrame *df = new DataFrame(colNames, colTypes);
     vector<vector<string>> linesRead;
 
     bool columnsDone = false;
@@ -136,15 +134,11 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
     mutex mtxDB;
     mutex mtxCounter;
 
-    threads.emplace_back(extractFromDB, db, sql, &df, ref(DBAlreadyRead), ref(linesRead), ref(mtxDB));
-
-    cout << df.getNumCols() << endl;
-    cout << df.colNames[0] << endl;
-    cout << df.getNumRecords() << endl;
+    threads.emplace_back(extractFromDB, db, sql, df, ref(DBAlreadyRead), ref(linesRead), ref(mtxDB));
 
     int recordsCount = 0;
     for(int i = 1; i < numThreads; i++) {
-        threads.emplace_back(processDBLines, ref(linesRead), &df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
+        threads.emplace_back(processDBLines, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
     }
     for(auto& t : threads) {
         t.join();
@@ -153,5 +147,5 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
     // Processa as linhas lidas do DB
 
 
-    return nullptr;
+    return df;
 }
