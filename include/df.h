@@ -71,6 +71,9 @@ class DataFrame {
         // Retorna o índice da coluna
         int getColumnIndex(const string&) const;
 
+        // Troca um nome de uma coluna específica
+        void changeColumnName(string pastName, string newName);
+
     private:
         // Concorrência 
         mutable mutex mutexDF;
