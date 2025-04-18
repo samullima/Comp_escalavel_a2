@@ -21,9 +21,6 @@ using namespace std;
 // Tipo possível das variáveis
 using ElementType = variant<int, float, bool, string>; 
 
-// Mutex para sincronizar acesso ao DataFrame
-mutex df_mutex;
-
 // Função auxiliar para filtrar um bloco de registros
 vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max) {
     vector<int> idxes_list;
