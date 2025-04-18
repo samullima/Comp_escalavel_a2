@@ -50,6 +50,9 @@ class DataFrame {
         // Retorna os nomes das colunas
         vector<string> getColumnNames() const;
 
+        // Retorna o nome de uma coluna
+        string getColumnName(int idxColumn) const;
+
         // Retorna o número de colunas
         int getNumCols() const;
 
@@ -58,6 +61,9 @@ class DataFrame {
 
         // Retorna o mapa de tipos das colunas
         unordered_map<string, string> getColumnTypes() const;
+
+        // Retorna o tipo de uma coluna
+        string getColumnType(int idxColumn) const;
 
         // Retorna o número de registros (linhas)
         int getNumRecords() const;

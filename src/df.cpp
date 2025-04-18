@@ -12,7 +12,7 @@
 #include <memory>
 #include <fstream>
 #include <sstream>
-#include "include/df.h"
+#include "../include/df.h"
 #include <algorithm>
 #include <functional>
 
@@ -60,8 +60,13 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
 {
     lock_guard<mutex> lock(mutexDF);
 
-    if (numRecords != col.size()){
-        cerr << "Número de registros imcompatível" << endl;
+    // Se ainda não há registros, definimos com base nessa coluna
+    if (numRecords == 0) {
+        numRecords = col.size();
+        rowMutexes.resize(numRecords);  // importante para evitar problemas futuros
+    } else if (numRecords != col.size()) {
+        cerr << "Número de registros incompatível" << endl;
+        return;
     }
 
     // Se a coluna já existe, atualizamos ela
@@ -274,6 +279,11 @@ vector<string> DataFrame::getColumnNames() const {
     return colNames;
 }
 
+string DataFrame::getColumnName(int idxColumn) const {
+    string colName = colNames[idxColumn];
+    return colName;
+}
+
 int DataFrame::getNumCols() const {
     return numCols;
 }
@@ -284,6 +294,12 @@ vector<ElementType> DataFrame::getColumn(int i) const {
 
 unordered_map<string, string> DataFrame::getColumnTypes() const {
     return colTypes;
+}
+
+string DataFrame::getColumnType(int idxColumn) const {
+    string colName = colNames[idxColumn];
+    auto it = colTypes.find(colName);
+    return it->second;
 }
 
 int DataFrame::getNumRecords() const {

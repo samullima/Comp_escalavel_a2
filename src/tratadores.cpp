@@ -12,17 +12,14 @@
 #include <functional>
 #include <future>
 
-#include "include/df.h"
-#include "include/threads.h"
-#include "include/tratadores.h"
+#include "../include/df.h"
+#include "../include/threads.h"
+#include "../include/tratadores.h"
 
 using namespace std;
 
 // Tipo possível das variáveis
 using ElementType = variant<int, float, bool, string>; 
-
-// Mutex para sincronizar acesso ao DataFrame
-mutex df_mutex;
 
 // Função auxiliar para filtrar um bloco de registros
 vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max) {
@@ -258,4 +255,147 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& 
 
     return result;
 }
- 
+
+DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& pool)
+{
+    int colIdx = df.getColumnIndex(colName);
+    vector<ElementType> column = df.getColumn(colIdx);
+    size_t dataSize = column.size();
+
+    int numThreads = pool.size();
+    size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+
+    vector<future<unordered_map<string, int>>> futures;
+
+    // Cálculo de contagens para cada thread
+    for (int t=0; t<numThreads; t++)
+    {
+        size_t start = t * blockSize;
+        size_t end = min(start + blockSize, dataSize);
+        if (start >= end) break;
+
+        // Criando uma promise para um future
+        auto promise = make_shared<std::promise<unordered_map<string, int>>>();
+        futures.push_back(promise->get_future());
+
+        // Enfileira tarefa no threadpool
+        pool.enqueue([start, end, &column, promise]() {
+            // Contagem
+            unordered_map<string, int> localCounts;
+            for (size_t i = start; i < end; i++) {
+                const ElementType& val = column[i];
+                string valStr = variantToString(val);
+                localCounts[valStr]++;
+            }
+            // Desbloqueia o future e envia o valor a ele
+            promise->set_value(move(localCounts));
+        });
+    }
+
+     // Junta os resultados
+     unordered_map<string, int> counts;
+     for (auto& f : futures) {
+        // f.get() é bloqueado até que a thred mande o valor da promise ao future
+        unordered_map<string, int> localMap = f.get();
+        for (const auto& pair : localMap) {
+            counts[pair.first] += pair.second;
+         }
+     }
+
+    // Novas colunas
+    vector<ElementType> values;
+    vector<ElementType> frequencies;
+
+    // Adicionando valores às colunas
+    for (const auto& pair: counts)
+    {
+        values.push_back(pair.first);
+        frequencies.push_back(pair.second);
+    }
+
+    // Pegando tipo da coluna original
+    int idxColumn = df.getColumnIndex(colName);
+    string typeColumn = df.getColumnType(idxColumn);
+
+    // Novo DataFrame
+    vector<string> colNames = {"value", "count"};
+    vector<string> colTypes = {typeColumn, "int"};
+
+    DataFrame result(colNames, colTypes);
+    result.addColumn(values, "value", typeColumn);
+    result.addColumn(frequencies, "count", "int");
+
+    return result;
+}
+
+DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPool& pool)
+{
+    int idxColumn = df.getColumnIndex(colName);
+    vector<ElementType> timeColumn = df.getColumn(idxColumn);
+
+    size_t dataSize = timeColumn.size();
+    int numThreads = pool.size();
+    size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+    vector<future<vector<string>>> futures;
+
+    for (int t = 0; t < numThreads; ++t)
+    {
+        size_t start = t * blockSize;
+        size_t end = min(start + blockSize, dataSize);
+        if (start >= end) break;
+
+        auto promise = make_shared<std::promise<vector<string>>>();
+        futures.push_back(promise->get_future());
+
+        // Enfileira a tarefa
+        pool.enqueue([start, end, &timeColumn, promise]() {
+            vector<string> partialResult;
+            //partialResult.reserve(end - start); // pode ser útil para o desempenho
+
+            for (size_t i = start; i < end; i++)
+            {
+                const auto& elem = timeColumn[i];
+                if (holds_alternative<string>(elem))
+                {
+                    string timeStr = get<string>(elem);
+                    partialResult.push_back(timeStr.substr(0, 2));
+                }
+                else
+                {
+                    partialResult.push_back("");
+                }
+            }
+
+            promise->set_value(move(partialResult));
+        });
+    }
+
+    // Junta os resultados
+    vector<string> hoursColumn;
+    //hoursColumn.reserve(dataSize); // pode ser útil para o desempenho
+    for (auto& f : futures)
+    {
+        vector<string> partial = f.get();
+        hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
+    }
+
+    // Pegando tipo/nome da coluna original
+    string typeColumn = df.getColumnType(idxColumn);
+    string nameColumn = df.getColumnName(idxColumn);
+
+    // Novo DataFrame com a coluna hour
+    vector<string> colNames = {nameColumn};
+    vector<string> colTypes = {typeColumn};
+
+    vector<ElementType> colHour;
+    for (size_t i=0; i<hoursColumn.size(); i++)
+    {
+        const auto& hour = hoursColumn[i];
+        colHour.push_back(hour);
+    }
+
+    DataFrame dfHours(colNames, colTypes);
+    dfHours.addColumn(colHour, nameColumn, typeColumn);
+
+    return dfHours;
+}
