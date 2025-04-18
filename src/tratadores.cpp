@@ -263,16 +263,45 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
 {
     int colIdx = df.getColumnIndex(colName);
     vector<ElementType> column = df.getColumn(colIdx);
+    size_t dataSize = column.size();
 
-    unordered_map<string, int> counts;
+    int numThreads = pool.size();
+    size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
-    // Contagem
-    for (size_t i=0; i<column.size(); i++)
+    vector<future<unordered_map<string, int>>> futures;
+
+    // Cálculo de contagens para cada thread
+    for (int t=0; t<numThreads; t++)
     {
-        const ElementType& val = column[i];
-        string valStr = variantToString(val);
-        counts[valStr]++;
+        size_t start = t * blockSize;
+        size_t end = min(start + blockSize, dataSize);
+        if (start >= end) break;
+
+        // Criando uma promise para um futuro
+        auto promise = make_shared<std::promise<unordered_map<string, int>>>();
+        futures.push_back(promise->get_future());
+
+        // Enfileira tarefa no threadpool
+        pool.enqueue([start, end, &column, promise]() {
+            // Contagem
+            unordered_map<string, int> localCounts;
+            for (size_t i = start; i < end; i++) {
+                const ElementType& val = column[i];
+                string valStr = variantToString(val);
+                localCounts[valStr]++;
+            }
+            promise->set_value(move(localCounts));
+        });
     }
+
+     // Junta os resultados
+     unordered_map<string, int> counts;
+     for (auto& f : futures) {
+         unordered_map<string, int> localMap = f.get();
+         for (const auto& pair : localMap) {
+             counts[pair.first] += pair.second;
+         }
+     }
 
     // Novas colunas
     vector<ElementType> values;
