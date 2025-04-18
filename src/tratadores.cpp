@@ -330,31 +330,56 @@ DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& p
 
 DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPool& pool)
 {
-    vector<string> hoursColumn;
-    int idx = df.getColumnIndex(colName);
-    vector<ElementType> timeColumn = df.getColumn(idx);
-    
-    // Aloca memória no vetor para o tamanho necessário
-    hoursColumn.reserve(timeColumn.size());
+    int idxColumn = df.getColumnIndex(colName);
+    vector<ElementType> timeColumn = df.getColumn(idxColumn);
 
-    for (size_t i=0; i<timeColumn.size(); i++)
+    size_t dataSize = timeColumn.size();
+    int numThreads = pool.size();
+    size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+    vector<future<vector<string>>> futures;
+
+    for (int t = 0; t < numThreads; ++t)
     {
-        const auto& elem = timeColumn[i];
-        if (holds_alternative<string>(elem))
-        {
-            string timeStr =  get<string>(elem);
+        size_t start = t * blockSize;
+        size_t end = min(start + blockSize, dataSize);
+        if (start >= end) break;
 
-            // Pega as duas primeiras posições HH
-            hoursColumn.push_back(timeStr.substr(0, 2));
-        }
-        else
-        {
-            hoursColumn.push_back("");
-        }
+        auto promise = make_shared<std::promise<vector<string>>>();
+        futures.push_back(promise->get_future());
+
+        // Enfileira a tarefa
+        pool.enqueue([start, end, &timeColumn, promise]() {
+            vector<string> partialResult;
+            //partialResult.reserve(end - start); // pode ser útil para o desempenho
+
+            for (size_t i = start; i < end; i++)
+            {
+                const auto& elem = timeColumn[i];
+                if (holds_alternative<string>(elem))
+                {
+                    string timeStr = get<string>(elem);
+                    partialResult.push_back(timeStr.substr(0, 2));
+                }
+                else
+                {
+                    partialResult.push_back("");
+                }
+            }
+
+            promise->set_value(move(partialResult));
+        });
+    }
+
+    // Junta os resultados
+    vector<string> hoursColumn;
+    //hoursColumn.reserve(dataSize); // pode ser útil para o desempenho
+    for (auto& f : futures)
+    {
+        vector<string> partial = f.get();
+        hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
     }
 
     // Pegando tipo/nome da coluna original
-    int idxColumn = df.getColumnIndex(colName);
     string typeColumn = df.getColumnType(idxColumn);
     string nameColumn = df.getColumnName(idxColumn);
 
