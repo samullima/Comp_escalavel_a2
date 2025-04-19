@@ -7,8 +7,8 @@
 
 using namespace std;
 
-int STORAGE_BLOCKSIZE = 1000;
-int PROCESS_BLOCKSIZE = 100;
+int STORAGE_BLOCKSIZE = 30000;
+int PROCESS_BLOCKSIZE = 1000;
 
 static int callback(void *data, int argc, char **argv, char **azColName) 
 {
@@ -90,7 +90,7 @@ void processDBBlocks(const vector<vector<string>>& linesRead, DataFrame* df, int
         canProceed = (recordsCount < linesRead.size());
         int firstLine = recordsCount;
         int lastLine = min(recordsCount + blocksize, (int)linesRead.size());
-        recordsCount = lastLine + 1;
+        recordsCount = lastLine;
         mtxCounter.unlock();
         
         if(!canProceed) {
@@ -148,7 +148,6 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
     
     if( rc ) {
         cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
-        // fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return nullptr;
     }
 
@@ -173,7 +172,8 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
 
     int recordsCount = 0;
     for(int i = 1; i < numThreads; i++) {
-        threads.emplace_back(processDBLines, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
+        // threads.emplace_back(processDBLines, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
+        threads.emplace_back(processDBBlocks, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
     }
     for(auto& t : threads) {
         t.join();

@@ -13,13 +13,16 @@
 
 using namespace std;
 
+int STORAGE_BLOCKSIZE = 30000;
+int PROCESS_BLOCKSIZE = 1000;
+
 void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead, mutex& mtxFile) {
     /*
     Esse método lê o arquivo CSV e preenche o vetor linesRead com as linhas lidas.
     */
     
     string line;
-    int blocksize = 30000;
+    int blocksize = STORAGE_BLOCKSIZE;
     while(!file.eof())
     {
         vector<string> blockRead;
@@ -170,7 +173,7 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
     int recordsCount = 0;
     for(int i = 1; i < numThreads; i++) {
         // threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter)));
-        threads.push_back(thread(processCSVBlocks, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter), 10000));
+        threads.push_back(thread(processCSVBlocks, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter), PROCESS_BLOCKSIZE));
     }
 
     threads[0].join();
