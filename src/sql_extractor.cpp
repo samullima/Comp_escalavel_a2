@@ -7,9 +7,12 @@
 
 using namespace std;
 
+int STORAGE_BLOCKSIZE = 1000;
+int PROCESS_BLOCKSIZE = 100;
+
 static int callback(void *data, int argc, char **argv, char **azColName) 
 {
-    int blocksize = 1000;
+    int blocksize = STORAGE_BLOCKSIZE;
 
     tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*> coolData = *static_cast<tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*>*>(data);
     vector<vector<string>>* blockRead = get<1>(coolData);
@@ -76,9 +79,37 @@ void extractFromDB(sqlite3 *db,
     DBAlreadyRead = true;
 }
 
+void processDBBlocks(const vector<vector<string>>& linesRead, DataFrame* df, int& recordsCount, bool& DBAlreadyRead, mutex& mtxDB, mutex& mtxCounter) {
+    /*
+    Esse método processa os blocos lidos do DB e preenche o DataFrame.
+    */
+    int blocksize = PROCESS_BLOCKSIZE;
+    while(!DBAlreadyRead || recordsCount < linesRead.size()){
+        bool canProceed = false;
+        mtxCounter.lock();
+        canProceed = (recordsCount < linesRead.size());
+        int firstLine = recordsCount;
+        int lastLine = min(recordsCount + blocksize, (int)linesRead.size());
+        recordsCount = lastLine + 1;
+        mtxCounter.unlock();
+        
+        if(!canProceed) {
+            continue;
+        }
+
+        if(!DBAlreadyRead)
+            mtxDB.lock();
+        vector<vector<string>>::const_iterator first = linesRead.begin() + firstLine;
+        vector<vector<string>>::const_iterator last = linesRead.begin() + lastLine;
+        vector<vector<string>> blockRead(first, last);
+        mtxDB.unlock();
+        df->addMultipleRecords(blockRead);
+    }
+}
+
 void processDBLines(const vector<vector<string>>& linesRead, DataFrame* df, int& recordsCount, bool& DBAlreadyRead, mutex& mtxDB, mutex& mtxCounter) {
     /*
-    Esse método processa as linhas lidas do CSV e preenche o DataFrame.
+    Esse método processa as linhas lidas do DB e preenche o DataFrame.
     */
    
     while(!DBAlreadyRead || recordsCount < linesRead.size()){
