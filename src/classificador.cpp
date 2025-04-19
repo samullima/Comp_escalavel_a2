@@ -8,8 +8,8 @@
 #include <memory>
 #include <future>
 
-#include "include/df.h"
-#include "include/threads.h"
+#include "../include/df.h"
+#include "../include/threads.h"
 
 /*
 using VariantType = std::variant<int, double, std::string>;
@@ -231,9 +231,9 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
     
                     // Classifica pessoas de acordo com as médias
                     string categoria;
-                    if (media > 5000) {
+                    if (media > 500) {
                         categoria = "A";
-                    } else if (media >= 1000 && media <= 5000) {
+                    } else if (media >= 200 && media <= 500) {
                         categoria = (saldo > 10000) ? "B" : "C";
                     } else {
                         categoria = "D";
