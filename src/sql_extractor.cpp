@@ -9,24 +9,20 @@ using namespace std;
 
 static int callback(void *data, int argc, char **argv, char **azColName) 
 {
-    // cout << "Callback function called with data: " << static_cast<const char*>(data);
-    tuple<vector<vector<string>>*, mutex*, DataFrame*, bool*> coolData = *static_cast<tuple<vector<vector<string>>*, mutex*, DataFrame*, bool*>*>(data);
-    vector<vector<string>>* linesRead = get<0>(coolData);
-    mutex* mtxDB = get<1>(coolData);
-    bool* columnsDone = get<3>(coolData);
+    int blocksize = 1000;
+
+    tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*> coolData = *static_cast<tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*>*>(data);
+    vector<vector<string>>* blockRead = get<1>(coolData);
+    mutex* mtxDB = get<2>(coolData);
+    bool* columnsDone = get<4>(coolData);
     
     // Colocando os nomes das colunas no DataFrame
     if (!(*columnsDone)) {
-        DataFrame* df = get<2>(coolData);
+        DataFrame* df = get<3>(coolData);
         vector<string> colNames(argc);
-        cout << "Columns: ";
-        for(int i = 0; i < argc; i++) {
-            cout << azColName[i] << " ";
-            df->changeColumnName("col" + to_string(i), azColName[i]);
-        }
         *columnsDone = true;
     }
-
+    
     vector<string> record(argc);
     for(int i = 0; i < argc; i++) {
         if (argv[i]) {
@@ -35,10 +31,19 @@ static int callback(void *data, int argc, char **argv, char **azColName)
             record[i] = "NULL";
         }
     }
-    (*mtxDB).lock();
-    (*linesRead).push_back(record);
-    (*mtxDB).unlock();
-    // df->addRecord(record);
+    (*blockRead).push_back(record);
+    
+    if((*blockRead).size() >= blocksize) {
+        vector<vector<string>>* linesRead = get<0>(coolData);
+        mtxDB->lock();
+        linesRead->insert(
+            linesRead->end(),
+            std::make_move_iterator(blockRead->begin()),
+            std::make_move_iterator(blockRead->end())
+        );
+        blockRead->clear();
+        mtxDB->unlock();
+    }
 
     return 0;
 }
@@ -55,8 +60,9 @@ void extractFromDB(sqlite3 *db,
     char *zErrMsg = 0;
     int rc;
     
+    vector<vector<string>> blockRead;
     bool columnsDone = false;
-    tuple<vector<vector<string>>*, mutex*, DataFrame*, bool*> data = {&linesRead, &mtxDB, df, &columnsDone};
+    tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*> data = {&linesRead, &blockRead, &mtxDB, df, &columnsDone};
     
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql.data(), callback, &data, &zErrMsg);
@@ -113,8 +119,6 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
         cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
         // fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return nullptr;
-    } else {
-        cerr << "Opened database successfully" << endl;
     }
 
     /* Create SQL statement */
