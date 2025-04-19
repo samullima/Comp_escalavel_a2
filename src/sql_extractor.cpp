@@ -72,8 +72,6 @@ void extractFromDB(sqlite3 *db,
     if( rc != SQLITE_OK ) {
         cerr << "SQL error: " << zErrMsg << endl;
         sqlite3_free(zErrMsg);
-    } else {
-        cerr << "Operation done successfully" << endl;
     }
     sqlite3_close(db);
     DBAlreadyRead = true;
@@ -178,9 +176,6 @@ DataFrame * readDB(const string& filename, string tableName, int numThreads, vec
     for(auto& t : threads) {
         t.join();
     }
-
-    // Processa as linhas lidas do DB
-
 
     return df;
 }
