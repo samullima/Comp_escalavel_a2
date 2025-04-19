@@ -27,7 +27,6 @@ mutex cout_mutex;
 // Tipo possível das variáveis
 using ElementType = variant<int, float, bool, string>; 
 
-// Funçao paralela de ordenaçao
 DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending) {
 	size_t key_idx = df.getColumnIndex(key_col);
 	const auto& key_column = df.columns[key_idx];
@@ -72,8 +71,9 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
 
 	// merge com heap
 	auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
-        return ascending ? get<int>(key_column[a.first]) > get<int>(key_column[b.first])
-                         : get<int>(key_column[a.first]) < get<int>(key_column[b.first]);
+        float fvalA = holds_alternative<int>(key_column[a.first]) ? static_cast<float>(get<int>(key_column[a.first])) : get<float>(key_column[a.first]);
+        float fvalB = holds_alternative<int>(key_column[b.first]) ? static_cast<float>(get<int>(key_column[b.first])) : get<float>(key_column[b.first]);
+        return ascending ? fvalA > fvalB : fvalA < fvalB;
     };
 	priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
 	vector<size_t> pos(num_threads, 0);
@@ -90,12 +90,11 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
 		if (++pos[block] < sorted_blocks[block].size())
 			pq.emplace(sorted_blocks[block][pos[block]], block);
 	}
-
 	// Construir metadados do DataFrame resultante
     vector<string> result_col_names;
     vector<string> result_col_types;
 
-    // Mudamos os nomes das colunas para podermos entender sua origem quando virmos o dataframe depois do join
+	// Mudamos os nomes das colunas para podermos entender sua origem quando virmos o dataframe depois do join
     for (const auto& name : df.colNames) {
         result_col_names.push_back(name);
         result_col_types.push_back(df.colTypes.at(name));
@@ -217,40 +216,79 @@ double calculateMeanParallel(const DataFrame& df, const string& target_col, Thre
     return total_count > 0 ? total_sum / total_count : 0.0;
 }
 
+DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& pool) {
+    // Quantis que queremos calcular
+    vector<double> quantilesToCompute = {0.0, 0.25, 0.5, 0.75, 1.0};
+    unordered_map<string, ElementType> quantile_results = getQuantiles(df, colName, quantilesToCompute, pool);
+    
+    for (auto& [label, val] : quantile_results) {
+        if (holds_alternative<int>(val)) {
+            val = static_cast<float>(get<int>(val));  // converte int para float
+        }
+    }
+
+    // Calcula a média paralelamente
+    double mean = calculateMeanParallel(df, colName, pool);
+
+    // Monta os nomes e tipos do DataFrame de saída
+    vector<string> colNames = {"statistic", "value"};
+    vector<string> colTypes = {"string", "float"};
+    DataFrame summary_df(colNames, colTypes);
+
+    // Adiciona os quantis no DataFrame
+    summary_df.addRecord({"min", to_string(get<float>(quantile_results["min"]))});
+    summary_df.addRecord({"Q1", to_string(get<float>(quantile_results["Q25"]))});
+    summary_df.addRecord({"median", to_string(get<float>(quantile_results["median"]))});
+    summary_df.addRecord({"Q3", to_string(get<float>(quantile_results["Q75"]))});
+    summary_df.addRecord({"max", to_string(get<float>(quantile_results["max"]))});
+
+    // Adiciona a média
+    summary_df.addRecord({"mean", to_string(mean)});
+
+    return summary_df;
+}
+
 // Teste simples
 int main() {
-	DataFrame df({"id", "nome", "idade"}, {"int", "string", "int"});
-	df.addRecord({"3", "Alice", "30"});
-	df.addRecord({"1", "Bob", "25"});
-	df.addRecord({"2", "Carol", "28"});
-	df.addRecord({"5", "Dan", "22"});
-	df.addRecord({"4", "Eve", "35"});
-	df.addRecord({"6", "Eva", "38"});
-	df.addRecord({"7", "Avan", "18"});
-	df.addRecord({"8", "Ale", "40"});
+    // DataFrame com coluna float "salario"
+    DataFrame df({"id", "nome", "salario"}, {"int", "string", "float"});
+    df.addRecord({"1", "Ana", "3500.50"});
+    df.addRecord({"2", "Bruno", "2700.75"});
+    df.addRecord({"3", "Clara", "4100.00"});
+    df.addRecord({"4", "Diego", "1800.25"});
+    df.addRecord({"5", "Eva", "5000.80"});
+    df.addRecord({"6", "Felipe", "3300.00"});
+    df.addRecord({"7", "Gi", "2900.30"});
+    df.addRecord({"8", "Hugo", "3100.10"});
 
-	cout << "Original:\n";
-	df.printDF();
+    cout << "Original:\n";
+    df.printDF();
 
-	ThreadPool pool(4);
-	DataFrame sorted = sort_by_column_parallel(df, "id", pool, true);
+    ThreadPool pool(4);
 
-	cout << "\nOrdenado por 'id':\n";
-	sorted.printDF();
+    // Ordenar por salário
+    DataFrame sorted = sort_by_column_parallel(df, "salario", pool, true);
+    cout << "\nOrdenado por 'salario':\n";
+    sorted.printDF();
 
-	vector<double> quantis = {0.0, 0.25, 0.5, 0.75, 1.0};
-    auto resultado = getQuantiles(df, "idade", quantis, pool);
+    // Quantis
+    vector<double> quantis = {0.0, 0.25, 0.5, 0.75, 1.0};
+    auto resultado = getQuantiles(df, "salario", quantis, pool);
 
-    cout << "\nQuantis para 'idade':\n";
+    cout << "\nQuantis para 'salario':\n";
     for (const auto& [q, val] : resultado) {
         cout << q << ": ";
         visit([](auto&& v) { cout << v << '\n'; }, val);
     }
 
-	double mean = calculateMeanParallel(df, "idade", pool);
+    // Média
+    double mean = calculateMeanParallel(df, "salario", pool);
+    cout << "Média da coluna 'salario': " << mean << endl;
 
-    // Imprimir a média
-    cout << "Média da coluna 'idade': " << mean << endl;
+    // Resumo estatístico
+    DataFrame resumo = summaryStats(df, "salario", pool);
+    cout << "\nResumo estatístico para 'salario':\n";
+    resumo.printDF();
 
-	return 0;
+    return 0;
 }
