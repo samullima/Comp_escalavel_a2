@@ -73,6 +73,17 @@ void extractFromDB(sqlite3 *db,
         cerr << "SQL error: " << zErrMsg << endl;
         sqlite3_free(zErrMsg);
     }
+
+    mtxDB.lock();
+    if(!blockRead.empty()) {
+        linesRead.insert(
+            linesRead.end(),
+            std::make_move_iterator(blockRead.begin()),
+            std::make_move_iterator(blockRead.end())
+        );
+        blockRead.clear();
+    }
+    mtxDB.unlock();
     sqlite3_close(db);
     DBAlreadyRead = true;
 }
