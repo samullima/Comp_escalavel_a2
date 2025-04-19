@@ -103,19 +103,24 @@ void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recor
         }
         mtxCounter.unlock();
 
-        for(int i = beginning; i < lastLine; i++) {
-            if(!fileAlreadyRead)
-                mtxFile.lock();
-            string line = linesRead[i];
-            mtxFile.unlock();
+        mtxFile.lock();
+        vector<string>::const_iterator first = linesRead.begin() + beginning;
+        vector<string>::const_iterator last = linesRead.begin() + lastLine;
+        vector<string> blockRead(first, last);
+        mtxFile.unlock();
+        vector<vector<string>> filteredBlockRead(blockRead.size());
+
+        for(int i = 0; i < blockRead.size(); i++) {
+            string line = blockRead[i];
             stringstream ss(line);
             string value;
             vector<string> record;
             while (getline(ss, value, ',')) {
                 record.push_back(value);
             }
-            df->addRecord(record);
+            filteredBlockRead[i] = record;
         }
+        df->addMultipleRecords(filteredBlockRead);
     }
 }
 
@@ -164,7 +169,8 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
     chrono::high_resolution_clock::time_point startProcess = chrono::high_resolution_clock::now();
     int recordsCount = 0;
     for(int i = 1; i < numThreads; i++) {
-        threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter)));
+        // threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter)));
+        threads.push_back(thread(processCSVBlocks, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter), 10000));
     }
 
     threads[0].join();

@@ -89,10 +89,16 @@ void DataFrame::addColumn(const vector<ElementType>& col, string colName, string
 
 
 void DataFrame::addRecord(const vector<string>& record) {
-    
+
     if (record.size() != numCols) {
         throw invalid_argument("O número de valores no registro deve ser igual ao número de colunas.");
     }
+
+    int recordIndex = 0;
+    for(int i = 0; i < numCols-1; i++) {
+        
+    }
+
     
     vector<ElementType> newRecord(numCols);
     
@@ -127,6 +133,47 @@ void DataFrame::addRecord(const vector<string>& record) {
     }
     numRecords++;
     rowMutexes.emplace_back();
+}
+
+void DataFrame::addMultipleRecords(const vector<vector<string>>& records) {
+    if (records.empty()) {
+        cerr << "Nenhum registro para adicionar." << endl;
+        return;
+    }
+    int numRecordsToAdd = records.size();
+
+    vector<vector<ElementType>> newRecords(numCols, vector<ElementType>(numRecordsToAdd));
+    for (int i = 0; i < numRecordsToAdd; ++i) {
+        if (records[i].size() != numCols) {
+            cerr << "Número de valores no registro " << i << " não é igual ao número de colunas." << endl;
+            return;
+        }
+        for (int j = 0; j < numCols; ++j) {
+            const string& type = colTypes[colNames[j]];
+            const string& value = records[i][j];
+
+            if (type == "int") {
+                newRecords[j][i] = stoi(value);
+            } else if (type == "float") {
+                newRecords[j][i] = stof(value);
+            } else if (type == "bool") {
+                newRecords[j][i] = (value == "true" || value == "1");
+            } else if (type == "string") {
+                newRecords[j][i] = value;
+            } else {
+                cerr << "Tipo de dado desconhecido na coluna " << colNames[j] << endl;
+                return;
+            }
+        }
+    }
+
+    lock_guard<mutex> lock(mutexDF);
+    for(int j = 0; j < numCols; ++j) {
+        // lock_guard<mutex> colLock(columnMutexes[j]); 
+        columns[j].insert(columns[j].end(), newRecords[j].begin(), newRecords[j].end());
+    }
+    numRecords += numRecordsToAdd;
+    rowMutexes.resize(numRecords);  // Atualiza o tamanho do vetor de mutexes de linha
 }
 
 
