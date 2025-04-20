@@ -29,70 +29,72 @@ mutex cout_mutex;
 using ElementType = variant<int, float, bool, string>; 
 
 DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending) {
-	size_t key_idx = df.getColumnIndex(key_col);
-	const auto& key_column = df.columns[key_idx];
-	size_t n = df.getNumRecords();
-	vector<size_t> indices(n);
-	iota(indices.begin(), indices.end(), 0);
+    size_t key_idx = df.getColumnIndex(key_col);
+    const auto& key_column = df.columns[key_idx];
+    size_t n = df.getNumRecords();
+    vector<size_t> indices(n);
+    iota(indices.begin(), indices.end(), 0);
 
-	int num_threads = pool.size();
-	size_t block_size = (n + num_threads - 1) / num_threads;
-	vector<vector<size_t>> sorted_blocks(num_threads);
-	vector<future<void>> futures;
+    int num_threads = pool.size();
+    size_t block_size = (n + num_threads - 1) / num_threads;
 
-	for (int i = 0; i < num_threads; ++i) {
-		size_t start = i * block_size;
-		size_t end = min(start + block_size, n);
-		vector<future<void>> futures;
+    vector<vector<size_t>> sorted_blocks(num_threads);
+    vector<promise<void>> promises(num_threads);
+    vector<future<void>> futures;
 
-		for (int i = 0; i < num_threads; ++i) {
-			size_t start = i * block_size;
-			size_t end = min(start + block_size, n);
-            // faz a ordenação
-			futures.push_back(async(std::launch::async, [&, start, end, i]() {
-				vector<size_t> local(indices.begin() + start, indices.begin() + end);
-				sort(local.begin(), local.end(), [&](size_t a, size_t b) {
-                    if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
-                        return ascending ? get<int>(key_column[a]) < get<int>(key_column[b]) 
-                                         : get<int>(key_column[a]) > get<int>(key_column[b]);
-                    }
-                    if (holds_alternative<float>(key_column[a]) && holds_alternative<float>(key_column[b])) {
-                        return ascending ? get<float>(key_column[a]) < get<float>(key_column[b]) 
-                                         : get<float>(key_column[a]) > get<float>(key_column[b]);
-                    }
-                    return false;
-                });
-				sorted_blocks[i] = move(local);
-			}));
-		}
+    // Relaciona promessas e futuros
+    for (auto& p : promises) {
+        futures.push_back(p.get_future());
+    }
 
-	}
+    // Lança as tarefas no pool
+    for (int i = 0; i < num_threads; ++i) {
+        size_t start = i * block_size;
+        size_t end = min(start + block_size, n);
 
-	for (auto& f : futures) f.get();
+        pool.enqueue([&, start, end, i]() {
+            vector<size_t> local(indices.begin() + start, indices.begin() + end);
+            sort(local.begin(), local.end(), [&](size_t a, size_t b) {
+                if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
+                    return ascending ? get<int>(key_column[a]) < get<int>(key_column[b])
+                                     : get<int>(key_column[a]) > get<int>(key_column[b]);
+                }
+                if (holds_alternative<float>(key_column[a]) && holds_alternative<float>(key_column[b])) {
+                    return ascending ? get<float>(key_column[a]) < get<float>(key_column[b])
+                                     : get<float>(key_column[a]) > get<float>(key_column[b]);
+                }
+                return false;
+            });
+            sorted_blocks[i] = move(local);
+            promises[i].set_value();
+        });
+    }
 
-	// merge com heap
-	auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
+    for (auto& f : futures) f.get();
+
+    // Merge com heap
+    auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
         float fvalA = holds_alternative<int>(key_column[a.first]) ? static_cast<float>(get<int>(key_column[a.first])) : get<float>(key_column[a.first]);
         float fvalB = holds_alternative<int>(key_column[b.first]) ? static_cast<float>(get<int>(key_column[b.first])) : get<float>(key_column[b.first]);
         return ascending ? fvalA > fvalB : fvalA < fvalB;
     };
-	priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
-	vector<size_t> pos(num_threads, 0);
+    priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
+    vector<size_t> pos(num_threads, 0);
 
-	for (int i = 0; i < num_threads; ++i)
-		if (!sorted_blocks[i].empty())
-			pq.emplace(sorted_blocks[i][0], i);
+    for (int i = 0; i < num_threads; ++i)
+        if (!sorted_blocks[i].empty())
+            pq.emplace(sorted_blocks[i][0], i);
 
-	vector<size_t> final_indices;
-	while (!pq.empty()) {
-		auto [idx, block] = pq.top();
-		pq.pop();
-		final_indices.push_back(idx);
-		if (++pos[block] < sorted_blocks[block].size())
-			pq.emplace(sorted_blocks[block][pos[block]], block);
-	}
+    vector<size_t> final_indices;
+    while (!pq.empty()) {
+        auto [idx, block] = pq.top();
+        pq.pop();
+        final_indices.push_back(idx);
+        if (++pos[block] < sorted_blocks[block].size())
+            pq.emplace(sorted_blocks[block][pos[block]], block);
+    }
 
-	// Construir metadados do DataFrame resultante
+    // Construir metadados do DataFrame resultante
     vector<string> result_col_names;
     vector<string> result_col_types;
 
@@ -100,25 +102,28 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
         result_col_names.push_back(name);
         result_col_types.push_back(df.colTypes.at(name));
     }
-	DataFrame result(result_col_names, result_col_types);
-	for (size_t i : final_indices) {
-		vector<string> record;
-		for (size_t j = 0; j < df.getNumCols(); ++j) {
-			const auto& val = df.columns[j][i];
-			if (holds_alternative<int>(val)) {
-				record.push_back(to_string(get<int>(val)));
-			} else if (holds_alternative<float>(val)) {
-				record.push_back(to_string(get<float>(val)));
-			} else if (holds_alternative<bool>(val)) {
-				record.push_back(get<bool>(val) ? "true" : "false");
-			} else if (holds_alternative<string>(val)) {
-				record.push_back(get<string>(val));
-			}
-		}
-		result.addRecord(record);
-	}
-	return result;
+
+    DataFrame result(result_col_names, result_col_types);
+    for (size_t i : final_indices) {
+        vector<string> record;
+        for (size_t j = 0; j < df.getNumCols(); ++j) {
+            const auto& val = df.columns[j][i];
+            if (holds_alternative<int>(val)) {
+                record.push_back(to_string(get<int>(val)));
+            } else if (holds_alternative<float>(val)) {
+                record.push_back(to_string(get<float>(val)));
+            } else if (holds_alternative<bool>(val)) {
+                record.push_back(get<bool>(val) ? "true" : "false");
+            } else if (holds_alternative<string>(val)) {
+                record.push_back(get<string>(val));
+            }
+        }
+        result.addRecord(record);
+    }
+
+    return result;
 }
+
 
 unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
     unordered_map<string, ElementType> result;
