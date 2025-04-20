@@ -1,9 +1,9 @@
 #include <thread>
 #include <mutex>
-#include <sqlite3.h>
-#include "include/df.h"
-#include "include/threads.h"
-#include "include/sql_extractor.h"
+#include "../include/sqlite3.h"
+#include "../include/df.h"
+#include "../include/threads.h"
+#include "../include/sql_extractor.h"
 
 using namespace std;
 
@@ -159,51 +159,48 @@ void processDBLines(const vector<vector<string>>& linesRead, DataFrame* df, int&
     }
 }
 
-DataFrame * readDB(const string& filename, string tableName, int numThreads, vector<string> colTypes)
-{
-    if(numThreads < 2) {
-        numThreads = 2;
-    }
-    
-    sqlite3 *db;
-    char *zErrMsg = 0;
-    int rc;
-    string sql;
+DataFrame* readDB(const string& filename, string tableName, int numThreads, vector<string> colTypes) {
+    if (numThreads < 2) numThreads = 2;
 
-    /* Open database */
-    rc = sqlite3_open(filename.c_str(), &db);
-    
-    if( rc ) {
+    sqlite3* db;
+    int rc = sqlite3_open(filename.c_str(), &db);
+    if (rc) {
         cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
         return nullptr;
     }
 
-    /* Create SQL statement */
-    sql = "SELECT * FROM " + tableName + ";";
+    string sql = "SELECT * FROM " + tableName + ";";
 
-    vector<thread> threads;
     vector<string> colNames;
-    for(int i = 0; i < colTypes.size(); i++) {
+    for (int i = 0; i < colTypes.size(); ++i)
         colNames.push_back("col" + to_string(i));
-    }
-    DataFrame *df = new DataFrame(colNames, colTypes);
+
+    auto* df = new DataFrame(colNames, colTypes);
     vector<vector<string>> linesRead;
-
-    bool columnsDone = false;
     bool DBAlreadyRead = false;
-
-    mutex mtxDB;
-    mutex mtxCounter;
-
-    threads.emplace_back(extractFromDB, db, sql, df, ref(DBAlreadyRead), ref(linesRead), ref(mtxDB));
-
+    mutex mtxDB, mtxCounter;
     int recordsCount = 0;
-    for(int i = 1; i < numThreads; i++) {
-        // threads.emplace_back(processDBLines, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
-        threads.emplace_back(processDBBlocks, ref(linesRead), df, ref(recordsCount), ref(DBAlreadyRead), ref(mtxDB), ref(mtxCounter));
+
+    ThreadPool pool(numThreads);
+
+    // Task 0: leitura do banco
+    pool.enqueue(0,
+        [df, &DBAlreadyRead, &linesRead, &mtxDB, sql, db]() mutable {
+            extractFromDB(db, sql, df, DBAlreadyRead, linesRead, mtxDB);
+        });
+
+    // Tasks 1...n-1: processadores
+    for (int i = 1; i < numThreads; ++i) {
+        pool.enqueue(i,
+            [df, &linesRead, &recordsCount, &DBAlreadyRead, &mtxDB, &mtxCounter]() mutable {
+                processDBBlocks(linesRead, df, recordsCount, DBAlreadyRead, mtxDB, mtxCounter);
+            },
+            {0}); // depende da task 0
     }
-    for(auto& t : threads) {
-        t.join();
+
+    // Aguarda todas terminarem
+    while (pool.size() > 0 && pool.getActiveThreads() > 0) {
+        this_thread::sleep_for(chrono::milliseconds(10));
     }
 
     return df;

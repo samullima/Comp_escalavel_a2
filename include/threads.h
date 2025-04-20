@@ -65,6 +65,10 @@ public:
 
     size_t size() const;
 
+    bool getActiveThreads() const {
+        return activeThreads;
+    }    
+
 private:
     struct Task {
         MoveOnlyFunction<void()> func;  // Função a ser executada
