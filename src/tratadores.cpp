@@ -744,62 +744,165 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, 
     return top_10;
 }
 
+// DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool)
+// {
+//     // Obtendo os Quantis da coluna amount
+//     unordered_map<string, ElementType> quantiles = getQuantiles(df, amountCol, {0.25, 0.75}, pool);
+//     float q1 = get<float>(quantiles["Q25"]);
+//     float q3 = get<float>(quantiles["Q75"]);
+//     float iqr = q3 - q1;
+
+//     // Limites
+//     float lower = (q1 - 1.5f * iqr < 0) ? 1.0f : (q1 - 1.5f * iqr);
+//     float upper = q3 + 1.5f * iqr;
+
+//     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
+
+//     int idxTrans = df.getColumnIndex(transactionIDCol);
+//     int idxAmount = df.getColumnIndex(amountCol);
+//     int idxLocation = df.getColumnIndex(locationCol);
+//     int idxAccount = df.getColumnIndex(accountCol);
+
+//     vector<ElementType> ids;
+//     vector<ElementType> suspiciousLocation;
+//     vector<ElementType> suspiciousAmount;
+
+//     size_t dataSize = df.getNumRecords();
+//     int numThreads = pool.size();
+//     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+//     vector<future<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>> futures;
+
+//     // Encontrando anormalidades
+//     for (int i=0; i<df.getNumRecords(); i++)
+//     {
+//         float amount = get<float>(df.getColumn(idxAmount)[i]);
+//         string location = get<string>(df.getColumn(idxLocation)[i]);
+//         int id = get<int>(df.getColumn(idxTrans)[i]);
+//         int accountID = get<int>(df.getColumn(idxAccount)[i]);
+
+//         bool isAmountSus = (amount < lower || amount > upper);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+//         bool isLocationSus = false;
+//         auto& seenLocations = accountSeenLocations[accountID];
+
+//         if (seenLocations.find(location) == seenLocations.end()) {
+//             if (!seenLocations.empty()) {
+//                 // Localização nova para essa conta
+//                 isLocationSus = true;
+//             }
+//             seenLocations.insert(location);
+//         }
+
+//         if (isAmountSus == true || isLocationSus == true)
+//         {
+//             ids.push_back(id);
+//             suspiciousLocation.push_back(isLocationSus);
+//             suspiciousAmount.push_back(isAmountSus);
+//         }
+//     }
+
+//     // DataFrame Resultado
+//     string typeColumn = df.getColumnType(idxTrans);
+//     vector<string> colNames = {transactionIDCol, "is_location_suspicious", "is_amount_suspicious"};
+//     vector<string> colTypes = {typeColumn, "bool", "bool"};
+
+//     DataFrame result(colNames, colTypes);
+//     result.addColumn(ids, transactionIDCol, typeColumn);
+//     result.addColumn(suspiciousLocation, "is_location_suspicious", "bool");
+//     result.addColumn(suspiciousAmount, "is_amount_suspicious", "bool");
+
+//     return result;
+// }
+
 DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool)
 {
-    // Obtendo os Quantis da coluna amount
     unordered_map<string, ElementType> quantiles = getQuantiles(df, amountCol, {0.25, 0.75}, pool);
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
 
-    // Limites
-    float lower = (q1 - 1.5f * iqr < 0) ? 1.0f : (q1 - 1.5f * iqr);
-    float upper = q3 + 1.5f * iqr;
+    float lower = (q1 - 0.45f * iqr < 0) ? 1.0f : (q1 - 0.45f * iqr);
+    float upper = q3 + 1.25f * iqr;
 
     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
+
+    size_t dataSize = df.getNumRecords();
+    int numThreads = pool.size();
+    size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+
+    // cout << "Data Size: " << dataSize << endl;
+    // cout << "Num Threads: " << numThreads << endl;
+    // cout << "Block Size: " << blockSize << endl;
 
     int idxTrans = df.getColumnIndex(transactionIDCol);
     int idxAmount = df.getColumnIndex(amountCol);
     int idxLocation = df.getColumnIndex(locationCol);
     int idxAccount = df.getColumnIndex(accountCol);
 
-    vector<ElementType> ids;
-    vector<ElementType> suspiciousLocation;
-    vector<ElementType> suspiciousAmount;
+    const vector<ElementType>& colTrans = df.getColumn(idxTrans);
+    const vector<ElementType>& colAmount = df.getColumn(idxAmount);
+    const vector<ElementType>& colLocation = df.getColumn(idxLocation);
+    const vector<ElementType>& colAccount = df.getColumn(idxAccount);
 
-    // Fazendo um conjunto de localizações para cada account_id
-    unordered_map<int, unordered_set<string>> accountSeenLocations;
+    vector<future<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>> futures;
 
-    // Encontrando anormalidades
-    for (int i=0; i<df.getNumRecords(); i++)
+    for (int t = 0; t < numThreads; ++t)
     {
-        float amount = get<float>(df.getColumn(idxAmount)[i]);
-        string location = get<string>(df.getColumn(idxLocation)[i]);
-        int id = get<int>(df.getColumn(idxTrans)[i]);
-        int accountID = get<int>(df.getColumn(idxAccount)[i]);
+        size_t start = t * blockSize;
+        size_t end = std::min(start + blockSize, dataSize);
+        if (start >= end) break;
 
-        bool isAmountSus = (amount < lower || amount > upper);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-        bool isLocationSus = false;
-        auto& seenLocations = accountSeenLocations[accountID];
+        auto promise = make_shared<std::promise<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>>();
+        futures.push_back(promise->get_future());
 
-        if (seenLocations.find(location) == seenLocations.end()) {
-            if (!seenLocations.empty()) {
-                // Localização nova para essa conta
-                isLocationSus = true;
+        pool.enqueue([start, end, lower, upper,
+                    &colTrans, &colAmount, &colLocation, &colAccount, promise]() {
+            vector<ElementType> ids;
+            vector<ElementType> suspiciousLocation;
+            vector<ElementType> suspiciousAmount;
+            unordered_map<int, unordered_set<string>> accountSeenLocations;
+
+            for (size_t i = start; i < end; i++) {
+                float amount = get<float>(colAmount[i]);
+                string location = get<string>(colLocation[i]);
+                int id = get<int>(colTrans[i]);
+                int accountID = get<int>(colAccount[i]);
+
+                bool isAmountSus = (amount < lower || amount > upper);
+                bool isLocationSus = false;
+
+                auto& seenLocations = accountSeenLocations[accountID];
+                if (seenLocations.find(location) == seenLocations.end()) {
+                    if (!seenLocations.empty()) {
+                        // Nova localidade para a conta
+                        isLocationSus = true;
+                    }
+                    seenLocations.insert(location);
+                }
+
+                if (isAmountSus || isLocationSus) {
+                    ids.push_back(id);
+                    suspiciousLocation.push_back(isLocationSus);
+                    suspiciousAmount.push_back(isAmountSus);
+                }
             }
-            seenLocations.insert(location);
-        }
 
-        if (isAmountSus == true || isLocationSus == true)
-        {
-            ids.push_back(id);
-            suspiciousLocation.push_back(isLocationSus);
-            suspiciousAmount.push_back(isAmountSus);
-        }
+            promise->set_value(make_tuple(move(ids), move(suspiciousLocation), move(suspiciousAmount)));
+        });
     }
 
-    // DataFrame Resultado
+
+    // Juntando resultados das threads
+    vector<ElementType> ids, suspiciousLocation, suspiciousAmount;
+    for (auto& fut : futures)
+    {
+        auto [localIds, localLoc, localAmt] = fut.get();
+        ids.insert(ids.end(), localIds.begin(), localIds.end());
+        suspiciousLocation.insert(suspiciousLocation.end(), localLoc.begin(), localLoc.end());
+        suspiciousAmount.insert(suspiciousAmount.end(), localAmt.begin(), localAmt.end());
+    }
+
+    // Monta o DataFrame
     string typeColumn = df.getColumnType(idxTrans);
     vector<string> colNames = {transactionIDCol, "is_location_suspicious", "is_amount_suspicious"};
     vector<string> colTypes = {typeColumn, "bool", "bool"};

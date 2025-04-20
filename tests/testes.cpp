@@ -135,6 +135,86 @@ int main() {
     df_6.addRecord({"8", "20", "600", "Hartberg"});
     df_6.addRecord({"9", "20", "100", "Hartberg"});
 
+    df_6.addRecord({"10", "10", "10", "Guzmantown"});
+    df_6.addRecord({"11", "20", "200", "Josephfort"});
+    df_6.addRecord({"12", "10", "500", "Guzmantown"});
+    df_6.addRecord({"13", "20", "700", "Josephfort"});
+    df_6.addRecord({"14", "20", "200", "Marybury"});
+    df_6.addRecord({"15", "30", "500", "Marybury"});
+    df_6.addRecord({"16", "30", "20000", "Marybury"});
+    df_6.addRecord({"17", "20", "600", "Hartberg"});
+    df_6.addRecord({"18", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"19", "10", "10", "Guzmantown"});
+    df_6.addRecord({"20", "20", "200", "Josephfort"});
+    df_6.addRecord({"21", "10", "500", "Guzmantown"});
+    df_6.addRecord({"22", "20", "700", "Josephfort"});
+    df_6.addRecord({"23", "20", "200", "Marybury"});
+    df_6.addRecord({"24", "30", "500", "Marybury"});
+    df_6.addRecord({"25", "30", "20000", "Marybury"});
+    df_6.addRecord({"26", "20", "600", "Hartberg"});
+    df_6.addRecord({"27", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"28", "10", "10", "Guzmantown"});
+    df_6.addRecord({"29", "20", "200", "Josephfort"});
+    df_6.addRecord({"30", "10", "500", "Guzmantown"});
+    df_6.addRecord({"31", "20", "700", "Josephfort"});
+    df_6.addRecord({"32", "20", "200", "Marybury"});
+    df_6.addRecord({"33", "30", "500", "Marybury"});
+    df_6.addRecord({"34", "30", "20000", "Marybury"});
+    df_6.addRecord({"35", "20", "600", "Hartberg"});
+    df_6.addRecord({"36", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"37", "10", "10", "Guzmantown"});
+    df_6.addRecord({"38", "20", "200", "Josephfort"});
+    df_6.addRecord({"39", "10", "500", "Guzmantown"});
+    df_6.addRecord({"40", "20", "700", "Josephfort"});
+    df_6.addRecord({"41", "20", "200", "Marybury"});
+    df_6.addRecord({"42", "30", "500", "Marybury"});
+    df_6.addRecord({"43", "30", "20000", "Marybury"});
+    df_6.addRecord({"44", "20", "600", "Hartberg"});
+    df_6.addRecord({"45", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"46", "10", "10", "Guzmantown"});
+    df_6.addRecord({"47", "20", "200", "Josephfort"});
+    df_6.addRecord({"48", "10", "500", "Guzmantown"});
+    df_6.addRecord({"49", "20", "700", "Josephfort"});
+    df_6.addRecord({"50", "20", "200", "Marybury"});
+    df_6.addRecord({"51", "30", "500", "Marybury"});
+    df_6.addRecord({"52", "30", "20000", "Marybury"});
+    df_6.addRecord({"53", "20", "600", "Hartberg"});
+    df_6.addRecord({"54", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"55", "10", "10", "Guzmantown"});
+    df_6.addRecord({"56", "20", "200", "Josephfort"});
+    df_6.addRecord({"57", "10", "500", "Guzmantown"});
+    df_6.addRecord({"58", "20", "700", "Josephfort"});
+    df_6.addRecord({"59", "20", "200", "Marybury"});
+    df_6.addRecord({"60", "30", "500", "Marybury"});
+    df_6.addRecord({"61", "30", "20000", "Marybury"});
+    df_6.addRecord({"62", "20", "600", "Hartberg"});
+    df_6.addRecord({"63", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"64", "10", "10", "Guzmantown"});
+    df_6.addRecord({"65", "20", "200", "Josephfort"});
+    df_6.addRecord({"66", "10", "500", "Guzmantown"});
+    df_6.addRecord({"67", "20", "700", "Josephfort"});
+    df_6.addRecord({"68", "20", "200", "Marybury"});
+    df_6.addRecord({"69", "30", "500", "Marybury"});
+    df_6.addRecord({"70", "30", "20000", "Marybury"});
+    df_6.addRecord({"71", "20", "600", "Hartberg"});
+    df_6.addRecord({"72", "20", "100", "Hartberg"});
+
+    df_6.addRecord({"73", "10", "10", "Guzmantown"});
+    df_6.addRecord({"74", "20", "200", "Josephfort"});
+    df_6.addRecord({"75", "10", "500", "Guzmantown"});
+    df_6.addRecord({"76", "20", "700", "Josephfort"});
+    df_6.addRecord({"77", "20", "200", "Marybury"});
+    df_6.addRecord({"78", "30", "500", "Marybury"});
+    df_6.addRecord({"79", "30", "20000", "Marybury"});
+    df_6.addRecord({"80", "20", "600", "Hartberg"});
+    df_6.addRecord({"81", "20", "100", "Hartberg"});
+
     cout << "\nResultado do abnormal_transactions:" << endl;
     DataFrame df_abnormal = abnormal_transactions(df_6, "transaction_id", "amount", "location", "account_id", pool);
     df_abnormal.printDF();
