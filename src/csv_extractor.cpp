@@ -8,8 +8,8 @@
 #include <thread>
 #include <iomanip>
 #include <chrono>
-#include "../include/df.h"
-#include "../include/csv_extractor.h"
+#include "include/df.h"
+#include "include/csv_extractor.h"
 
 using namespace std;
 
@@ -45,7 +45,7 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     cout << "Número de linhas lidas: " << linesRead.size() << endl;
 }
 
-// Método linha por linha 
+// Método linha por linha
 void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter) {
     /*
     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
@@ -106,7 +106,8 @@ void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recor
         }
         mtxCounter.unlock();
 
-        mtxFile.lock();
+        if(!fileAlreadyRead)
+            mtxFile.lock();
         vector<string>::const_iterator first = linesRead.begin() + beginning;
         vector<string>::const_iterator last = linesRead.begin() + lastLine;
         vector<string> blockRead(first, last);
