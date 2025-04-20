@@ -3,6 +3,7 @@
 #include <string>
 #include <variant>
 #include <unordered_map>
+#include <unordered_set>
 #include <map>
 #include <mutex>
 #include <thread>
@@ -11,6 +12,8 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <cmath>
+#include <numeric>
 
 #include "../include/df.h"
 #include "../include/threads.h"
@@ -398,4 +401,413 @@ DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPoo
     dfHours.addColumn(colHour, nameColumn, typeColumn);
 
     return dfHours;
+}
+
+DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const string& class_first, const string& class_sec, ThreadPool& tp) {
+    // Toma os índices das colunas relevantes
+    int id_idx    = df.getColumnIndex(id);
+    int media_idx = df.getColumnIndex(class_first);
+    int saldo_idx = df.getColumnIndex(class_sec);
+
+    // Busca as colunas relevantes
+    auto id_col    = df.getColumn(id_idx);
+    auto media_col = df.getColumn(media_idx);
+    auto saldo_col = df.getColumn(saldo_idx);
+
+    int numRecords = df.getNumRecords();
+    int num_threads = tp.size();
+    int block_size = (numRecords + num_threads - 1) / num_threads;
+
+    // Promises comunicação de threads
+    vector<future<vector<ElementType>>> futures_ids;
+    vector<future<vector<ElementType>>> futures_categorias;
+
+    // Para cada thread
+    for (int t = 0; t < num_threads; ++t) {
+        // Define os limites do bloco
+        int start = t * block_size;
+        int end = min(start + block_size, numRecords);
+        
+        // Define vetor de promessas para clientes e suas categorias
+        promise<vector<ElementType>> p_ids;
+        promise<vector<ElementType>> p_categorias;
+        futures_ids.push_back(p_ids.get_future());
+        futures_categorias.push_back(p_categorias.get_future());
+
+        // Cada thread processa uma lambda, que processa um bloco
+        tp.enqueue(
+            [start, end, &id_col, &media_col, &saldo_col, p_ids = move(p_ids), p_categorias = move(p_categorias)]() mutable {
+                // Cria um vetor local pra armazenar resultados do bloco
+                vector<ElementType> ids, categorias;
+    
+                // Para cada entrada do blobo
+                for (int i = start; i < end; ++i) {
+                    // Verifica se os valores estão no formato certo
+                    if (!holds_alternative<int>(id_col[i]) || 
+                        !holds_alternative<float>(media_col[i]) || 
+                        !holds_alternative<float>(saldo_col[i]))
+                        continue;
+                    
+                    // Se está tudo certo, extrai os valores 
+                    int account_id = get<int>(id_col[i]);
+                    float media = get<float>(media_col[i]);
+                    float saldo = get<float>(saldo_col[i]);
+    
+                    // Classifica pessoas de acordo com as médias
+                    string categoria;
+                    if (media > 500) {
+                        categoria = "A";
+                    } else if (media >= 200 && media <= 500) {
+                        categoria = (saldo > 10000) ? "B" : "C";
+                    } else {
+                        categoria = "D";
+                    }
+    
+                    // E armazena os resultados
+                    ids.push_back(account_id);
+                    categorias.push_back(categoria);
+                }
+    
+                p_ids.set_value(move(ids));
+                p_categorias.set_value(move(categorias));
+            }
+        );
+    }
+
+    // Espera todas as threads e junta os resultados
+    vector<string> colNames = {"account_id", "categoria"};
+    vector<string> colTypes = {"int", "string"};
+    DataFrame result(colNames, colTypes);
+
+    // Para cada thread
+    for (int t = 0; t < num_threads; ++t) {
+        // Pegue os resultados dos futuros
+        auto ids = futures_ids[t].get();
+        auto categorias = futures_categorias[t].get();
+
+        for (size_t i = 0; i < ids.size(); ++i) {
+            result.columns[0].push_back(ids[i]);
+            result.columns[1].push_back(categorias[i]);
+            result.numRecords++;
+        }
+    }
+
+    return result;
+}
+
+DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending) {
+	size_t key_idx = df.getColumnIndex(key_col);
+	const auto& key_column = df.columns[key_idx];
+	size_t n = df.getNumRecords();
+	vector<size_t> indices(n);
+	iota(indices.begin(), indices.end(), 0);
+
+	int num_threads = pool.size();
+	size_t block_size = (n + num_threads - 1) / num_threads;
+	vector<vector<size_t>> sorted_blocks(num_threads);
+	vector<future<void>> futures;
+
+	for (int i = 0; i < num_threads; ++i) {
+		size_t start = i * block_size;
+		size_t end = min(start + block_size, n);
+		vector<future<void>> futures;
+
+		for (int i = 0; i < num_threads; ++i) {
+			size_t start = i * block_size;
+			size_t end = min(start + block_size, n);
+            // faz a ordenação
+			futures.push_back(async(std::launch::async, [&, start, end, i]() {
+				vector<size_t> local(indices.begin() + start, indices.begin() + end);
+				sort(local.begin(), local.end(), [&](size_t a, size_t b) {
+                    if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
+                        return ascending ? get<int>(key_column[a]) < get<int>(key_column[b]) 
+                                         : get<int>(key_column[a]) > get<int>(key_column[b]);
+                    }
+                    if (holds_alternative<float>(key_column[a]) && holds_alternative<float>(key_column[b])) {
+                        return ascending ? get<float>(key_column[a]) < get<float>(key_column[b]) 
+                                         : get<float>(key_column[a]) > get<float>(key_column[b]);
+                    }
+                    return false;
+                });
+				sorted_blocks[i] = move(local);
+			}));
+		}
+
+	}
+
+	for (auto& f : futures) f.get();
+
+	// merge com heap
+	auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
+        float fvalA = holds_alternative<int>(key_column[a.first]) ? static_cast<float>(get<int>(key_column[a.first])) : get<float>(key_column[a.first]);
+        float fvalB = holds_alternative<int>(key_column[b.first]) ? static_cast<float>(get<int>(key_column[b.first])) : get<float>(key_column[b.first]);
+        return ascending ? fvalA > fvalB : fvalA < fvalB;
+    };
+	priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
+	vector<size_t> pos(num_threads, 0);
+
+	for (int i = 0; i < num_threads; ++i)
+		if (!sorted_blocks[i].empty())
+			pq.emplace(sorted_blocks[i][0], i);
+
+	vector<size_t> final_indices;
+	while (!pq.empty()) {
+		auto [idx, block] = pq.top();
+		pq.pop();
+		final_indices.push_back(idx);
+		if (++pos[block] < sorted_blocks[block].size())
+			pq.emplace(sorted_blocks[block][pos[block]], block);
+	}
+
+	// Construir metadados do DataFrame resultante
+    vector<string> result_col_names;
+    vector<string> result_col_types;
+
+    for (const auto& name : df.colNames) {
+        result_col_names.push_back(name);
+        result_col_types.push_back(df.colTypes.at(name));
+    }
+	DataFrame result(result_col_names, result_col_types);
+	for (size_t i : final_indices) {
+		vector<string> record;
+		for (size_t j = 0; j < df.getNumCols(); ++j) {
+			const auto& val = df.columns[j][i];
+			if (holds_alternative<int>(val)) {
+				record.push_back(to_string(get<int>(val)));
+			} else if (holds_alternative<float>(val)) {
+				record.push_back(to_string(get<float>(val)));
+			} else if (holds_alternative<bool>(val)) {
+				record.push_back(get<bool>(val) ? "true" : "false");
+			} else if (holds_alternative<string>(val)) {
+				record.push_back(get<string>(val));
+			}
+		}
+		result.addRecord(record);
+	}
+	return result;
+}
+
+unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
+    unordered_map<string, ElementType> result;
+
+    DataFrame sorted_df = sort_by_column_parallel(df, colName, pool, true);
+    const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
+    int n = sorted_df.getNumRecords();
+
+    // função para calcular os quantis
+    auto get_quantile_value = [&](double quantile) -> ElementType {
+        if (n == 0) return ElementType{};
+        double pos = quantile * (n - 1);
+        int lower = floor(pos);
+        int upper = ceil(pos);
+        if (lower == upper) {
+            return sorted_col[lower];
+        } 
+        // se for um numero par de records calcula a media
+        else {
+            if (holds_alternative<int>(sorted_col[lower]) && holds_alternative<int>(sorted_col[upper])) {
+                double lower_val = get<int>(sorted_col[lower]);
+                double upper_val = get<int>(sorted_col[upper]);
+                return static_cast<int>((upper - pos) * lower_val + (pos - lower) * upper_val);
+            } else if (holds_alternative<float>(sorted_col[lower]) && holds_alternative<float>(sorted_col[upper])) {
+                float lower_val = get<float>(sorted_col[lower]);
+                float upper_val = get<float>(sorted_col[upper]);
+                return static_cast<float>((upper - pos) * lower_val + (pos - lower) * upper_val);
+            } else {
+                return sorted_col[lower];
+            }
+        }
+    };
+    // adiciona os quantis no df
+    for (double q : quantiles) {
+        string label;
+        if (q == 0.0) label = "min";
+        else if (q == 1.0) label = "max";
+        else if (q == 0.5) label = "median";
+        else label = "Q" + to_string(static_cast<int>(q * 100));
+        result[label] = get_quantile_value(q);
+    }
+
+    return result;
+}
+
+double calculateMeanParallel(const DataFrame& df, const string& target_col, ThreadPool& pool) {
+    // Obtém o índice da coluna de interesse
+    int target_idx = df.getColumnIndex(target_col);
+    const auto& target_vec = df.columns[target_idx];
+
+    int total_records = df.getNumRecords();
+    int num_threads = pool.size();
+    int block_size = (total_records + num_threads - 1) / num_threads;
+
+    // Cria promessas e futuros
+    vector<promise<pair<double, int>>> promises(num_threads);
+    vector<future<pair<double, int>>> futures;
+
+    // Relacionamento entre promessas e futuros
+    for (auto& p : promises) {
+        futures.push_back(p.get_future());
+    }
+
+    // Divide o trabalho entre as threads
+    for (int t = 0; t < num_threads; ++t) {
+        int start = t * block_size;
+        int end = min(start + block_size, total_records);
+
+        pool.enqueue([&, start, end, t]() mutable {
+            double local_sum = 0.0;
+            int count = 0;
+
+            for (int i = start; i < end; ++i) {
+                if (holds_alternative<int>(target_vec[i])) {
+                    local_sum += get<int>(target_vec[i]);
+                    count++;
+                } else if (holds_alternative<float>(target_vec[i])) {
+                    local_sum += get<float>(target_vec[i]);
+                    count++;
+                }
+            }
+
+            // Define o resultado local da thread
+            promises[t].set_value(make_pair(local_sum, count));
+        });
+    }
+
+    // Fusão dos resultados
+    double total_sum = 0.0;
+    int total_count = 0;
+
+    for (auto& f : futures) {
+        auto result = f.get();
+        total_sum += result.first;
+        total_count += result.second;
+    }
+
+    // Calcula a média
+    return total_count > 0 ? total_sum / total_count : 0.0;
+}
+
+DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& pool) {
+    // Quantis que queremos calcular
+    vector<double> quantilesToCompute = {0.0, 0.25, 0.5, 0.75, 1.0};
+    unordered_map<string, ElementType> quantile_results = getQuantiles(df, colName, quantilesToCompute, pool);
+    
+    for (auto& [label, val] : quantile_results) {
+        if (holds_alternative<int>(val)) {
+            val = static_cast<float>(get<int>(val));
+        }
+    }
+
+    // Calcula a média
+    double mean = calculateMeanParallel(df, colName, pool);
+
+    // Monta os nomes e tipos do DataFrame de saída
+    vector<string> colNames = {"statistic", "value"};
+    vector<string> colTypes = {"string", "float"};
+    DataFrame summary_df(colNames, colTypes);
+
+    // Adiciona os quantis no DataFrame
+    summary_df.addRecord({"min", to_string(get<float>(quantile_results["min"]))});
+    summary_df.addRecord({"Q1", to_string(get<float>(quantile_results["Q25"]))});
+    summary_df.addRecord({"median", to_string(get<float>(quantile_results["median"]))});
+    summary_df.addRecord({"Q3", to_string(get<float>(quantile_results["Q75"]))});
+    summary_df.addRecord({"max", to_string(get<float>(quantile_results["max"]))});
+
+    // Adiciona a média
+    summary_df.addRecord({"mean", to_string(mean)});
+
+    return summary_df;
+}
+
+DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, ThreadPool& pool) {
+    // Conta o número de transações por cidade
+    DataFrame contagem = count_values(df, colName, pool);
+
+    // Ordena de forma decrescente pelo número de transações
+    DataFrame ordenado = sort_by_column_parallel(contagem, contagem.getColumnName(1), pool, false);
+
+    // Monta os nomes e tipos do DataFrame de saída
+    vector<string> colNames = {"location", "num_trans"};
+    vector<string> colTypes = {"string", "int"};
+    DataFrame top_10(colNames, colTypes);
+
+    // Adiciona as 10 primeiras cidades no df
+    size_t max_records = 10;
+    for (size_t i = 0; i < max_records; ++i) {
+        vector<ElementType> record = ordenado.getRecord(i);
+        string cidade = std::get<string>(record[0]);
+        int num_trans = std::get<int>(record[1]);
+
+        top_10.addRecord({cidade, to_string(num_trans)});
+    }
+    
+    return top_10;
+}
+
+DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool)
+{
+    // Obtendo os Quantis da coluna amount
+    unordered_map<string, ElementType> quantiles = getQuantiles(df, amountCol, {0.25, 0.75}, pool);
+    float q1 = get<float>(quantiles["Q25"]);
+    float q3 = get<float>(quantiles["Q75"]);
+    float iqr = q3 - q1;
+
+    // Limites
+    float lower = (q1 - 1.5f * iqr < 0) ? 1.0f : (q1 - 1.5f * iqr);
+    float upper = q3 + 1.5f * iqr;
+
+    //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
+
+    int idxTrans = df.getColumnIndex(transactionIDCol);
+    int idxAmount = df.getColumnIndex(amountCol);
+    int idxLocation = df.getColumnIndex(locationCol);
+    int idxAccount = df.getColumnIndex(accountCol);
+
+    vector<ElementType> ids;
+    vector<ElementType> suspiciousLocation;
+    vector<ElementType> suspiciousAmount;
+
+    // Fazendo um conjunto de localizações para cada account_id
+    unordered_map<int, unordered_set<string>> accountSeenLocations;
+
+    // Encontrando anormalidades
+    for (int i=0; i<df.getNumRecords(); i++)
+    {
+        float amount = get<float>(df.getColumn(idxAmount)[i]);
+        string location = get<string>(df.getColumn(idxLocation)[i]);
+        int id = get<int>(df.getColumn(idxTrans)[i]);
+        int accountID = get<int>(df.getColumn(idxAccount)[i]);
+
+        bool isAmountSus = (amount < lower || amount > upper);
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+        bool isLocationSus = false;
+        auto& seenLocations = accountSeenLocations[accountID];
+
+        if (seenLocations.find(location) == seenLocations.end()) {
+            if (!seenLocations.empty()) {
+                // Localização nova para essa conta
+                isLocationSus = true;
+            }
+            seenLocations.insert(location);
+        }
+
+        if (isAmountSus == true || isLocationSus == true)
+        {
+            ids.push_back(id);
+            suspiciousLocation.push_back(isLocationSus);
+            suspiciousAmount.push_back(isAmountSus);
+        }
+    }
+
+    // DataFrame Resultado
+    string typeColumn = df.getColumnType(idxTrans);
+    vector<string> colNames = {transactionIDCol, "is_location_suspicious", "is_amount_suspicious"};
+    vector<string> colTypes = {typeColumn, "bool", "bool"};
+
+    DataFrame result(colNames, colTypes);
+    result.addColumn(ids, transactionIDCol, typeColumn);
+    result.addColumn(suspiciousLocation, "is_location_suspicious", "bool");
+    result.addColumn(suspiciousAmount, "is_amount_suspicious", "bool");
+
+    return result;
 }

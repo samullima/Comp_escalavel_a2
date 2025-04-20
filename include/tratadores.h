@@ -13,10 +13,19 @@ vector<int> filter_block_records(const class DataFrame& df, function<bool(const 
 
 class DataFrame filter_records_by_idxes(const class DataFrame& df, const vector<int>& idxes);
 
+vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max);
+DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes);
 DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int num_threads, ThreadPool& pool);
 DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, ThreadPool& pool);
 DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& key_col, ThreadPool& pool);
 DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& pool);
 DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPool& pool);
+DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const string& class_first, const string& class_sec, ThreadPool& tp);
+DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending);
+unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool);
+double calculateMeanParallel(const DataFrame& df, const string& target_col, ThreadPool& pool);
+DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& pool);
+DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, ThreadPool& pool);
+DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool);
 
 #endif

@@ -119,6 +119,25 @@ int main() {
     DataFrame df_count = count_values(df_hour, "time_start", pool);
     df_count.printDF();
 
+    ///
+
+    vector<string> colName__ = {"transaction_id", "account_id", "amount", "location"};
+    vector<string> colType__ = {"int", "int", "float", "string"};
+    DataFrame df_6(colName__, colType__);
+
+    df_6.addRecord({"1", "10", "10", "Guzmantown"});
+    df_6.addRecord({"2", "20", "200", "Josephfort"});
+    df_6.addRecord({"3", "10", "500", "Guzmantown"});
+    df_6.addRecord({"4", "20", "700", "Josephfort"});
+    df_6.addRecord({"5", "20", "200", "Marybury"});
+    df_6.addRecord({"6", "30", "500", "Marybury"});
+    df_6.addRecord({"7", "30", "20000", "Marybury"});
+    df_6.addRecord({"8", "20", "600", "Hartberg"});
+    df_6.addRecord({"9", "20", "100", "Hartberg"});
+
+    cout << "\nResultado do abnormal_transactions:" << endl;
+    DataFrame df_abnormal = abnormal_transactions(df_6, "transaction_id", "amount", "location", "account_id", pool);
+    df_abnormal.printDF();
 
     return 0;
 }
