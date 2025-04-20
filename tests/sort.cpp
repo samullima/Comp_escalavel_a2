@@ -19,6 +19,7 @@
 #include "../include/df.h"
 #include "../include/threads.h"
 #include "../include/tratadores.h"
+#include "../include/csv_extractor.h"
 
 using namespace std;
 
@@ -47,7 +48,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
 		for (int i = 0; i < num_threads; ++i) {
 			size_t start = i * block_size;
 			size_t end = min(start + block_size, n);
-
+            // faz a ordenação
 			futures.push_back(async(std::launch::async, [&, start, end, i]() {
 				vector<size_t> local(indices.begin() + start, indices.begin() + end);
 				sort(local.begin(), local.end(), [&](size_t a, size_t b) {
@@ -59,7 +60,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
                         return ascending ? get<float>(key_column[a]) < get<float>(key_column[b]) 
                                          : get<float>(key_column[a]) > get<float>(key_column[b]);
                     }
-                    return false; // Caso onde os tipos não coincidem
+                    return false;
                 });
 				sorted_blocks[i] = move(local);
 			}));
@@ -90,11 +91,11 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
 		if (++pos[block] < sorted_blocks[block].size())
 			pq.emplace(sorted_blocks[block][pos[block]], block);
 	}
+
 	// Construir metadados do DataFrame resultante
     vector<string> result_col_names;
     vector<string> result_col_types;
 
-	// Mudamos os nomes das colunas para podermos entender sua origem quando virmos o dataframe depois do join
     for (const auto& name : df.colNames) {
         result_col_names.push_back(name);
         result_col_types.push_back(df.colTypes.at(name));
@@ -126,6 +127,7 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const strin
     const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
     int n = sorted_df.getNumRecords();
 
+    // função para calcular os quantis
     auto get_quantile_value = [&](double quantile) -> ElementType {
         if (n == 0) return ElementType{};
         double pos = quantile * (n - 1);
@@ -133,7 +135,9 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const strin
         int upper = ceil(pos);
         if (lower == upper) {
             return sorted_col[lower];
-        } else {
+        } 
+        // se for um numero par de records calcula a media
+        else {
             if (holds_alternative<int>(sorted_col[lower]) && holds_alternative<int>(sorted_col[upper])) {
                 double lower_val = get<int>(sorted_col[lower]);
                 double upper_val = get<int>(sorted_col[upper]);
@@ -143,11 +147,11 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const strin
                 float upper_val = get<float>(sorted_col[upper]);
                 return static_cast<float>((upper - pos) * lower_val + (pos - lower) * upper_val);
             } else {
-                return sorted_col[lower]; // fallback
+                return sorted_col[lower];
             }
         }
     };
-
+    // adiciona os quantis no df
     for (double q : quantiles) {
         string label;
         if (q == 0.0) label = "min";
@@ -202,12 +206,12 @@ double calculateMeanParallel(const DataFrame& df, const string& target_col, Thre
         });
     }
 
-    // Fusão dos resultados: soma total e contagem total
+    // Fusão dos resultados
     double total_sum = 0.0;
     int total_count = 0;
 
     for (auto& f : futures) {
-        auto result = f.get(); // Obtém o resultado da thread (bloqueia até estar disponível)
+        auto result = f.get();
         total_sum += result.first;
         total_count += result.second;
     }
@@ -223,11 +227,11 @@ DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& p
     
     for (auto& [label, val] : quantile_results) {
         if (holds_alternative<int>(val)) {
-            val = static_cast<float>(get<int>(val));  // converte int para float
+            val = static_cast<float>(get<int>(val));
         }
     }
 
-    // Calcula a média paralelamente
+    // Calcula a média
     double mean = calculateMeanParallel(df, colName, pool);
 
     // Monta os nomes e tipos do DataFrame de saída
@@ -248,46 +252,80 @@ DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& p
     return summary_df;
 }
 
+DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, ThreadPool& pool) {
+    // Conta o número de transações por cidade
+    DataFrame contagem = count_values(df, colName, pool);
+
+    // Ordena de forma decrescente pelo número de transações
+    DataFrame ordenado = sort_by_column_parallel(contagem, contagem.getColumnName(1), pool, false);
+
+    // Monta os nomes e tipos do DataFrame de saída
+    vector<string> colNames = {"location", "num_trans"};
+    vector<string> colTypes = {"string", "int"};
+    DataFrame top_10(colNames, colTypes);
+
+    // Adiciona as 10 primeiras cidades no df
+    size_t max_records = 10;
+    for (size_t i = 0; i < max_records; ++i) {
+        vector<ElementType> record = ordenado.getRecord(i);
+        string cidade = std::get<string>(record[0]);
+        int num_trans = std::get<int>(record[1]);
+
+        top_10.addRecord({cidade, to_string(num_trans)});
+    }
+    
+    return top_10;
+}
+
 // Teste simples
 int main() {
-    // DataFrame com coluna float "salario"
-    DataFrame df({"id", "nome", "salario"}, {"int", "string", "float"});
-    df.addRecord({"1", "Ana", "3500.50"});
-    df.addRecord({"2", "Bruno", "2700.75"});
-    df.addRecord({"3", "Clara", "4100.00"});
-    df.addRecord({"4", "Diego", "1800.25"});
-    df.addRecord({"5", "Eva", "5000.80"});
-    df.addRecord({"6", "Felipe", "3300.00"});
-    df.addRecord({"7", "Gi", "2900.30"});
-    df.addRecord({"8", "Hugo", "3100.10"});
+    // // DataFrame com coluna float "salario"
+    // DataFrame df({"id", "nome", "salario"}, {"int", "string", "float"});
+    // df.addRecord({"1", "Ana", "3500.50"});
+    // df.addRecord({"2", "Bruno", "2700.75"});
+    // df.addRecord({"3", "Clara", "4100.00"});
+    // df.addRecord({"4", "Diego", "1800.25"});
+    // df.addRecord({"5", "Eva", "5000.80"});
+    // df.addRecord({"6", "Felipe", "3300.00"});
+    // df.addRecord({"7", "Gi", "2900.30"});
+    // df.addRecord({"8", "Hugo", "3100.10"});
 
-    cout << "Original:\n";
-    df.printDF();
+    // cout << "Original:\n";
+    // df.printDF();
 
-    ThreadPool pool(4);
+    // ThreadPool pool(4);
 
-    // Ordenar por salário
-    DataFrame sorted = sort_by_column_parallel(df, "salario", pool, true);
-    cout << "\nOrdenado por 'salario':\n";
-    sorted.printDF();
+    // // Ordenar por salário
+    // DataFrame sorted = sort_by_column_parallel(df, "salario", pool, true);
+    // cout << "\nOrdenado por 'salario':\n";
+    // sorted.printDF();
 
-    // Quantis
-    vector<double> quantis = {0.0, 0.25, 0.5, 0.75, 1.0};
-    auto resultado = getQuantiles(df, "salario", quantis, pool);
+    // // Quantis
+    // vector<double> quantis = {0.0, 0.25, 0.5, 0.75, 1.0};
+    // auto resultado = getQuantiles(df, "salario", quantis, pool);
 
-    cout << "\nQuantis para 'salario':\n";
-    for (const auto& [q, val] : resultado) {
-        cout << q << ": ";
-        visit([](auto&& v) { cout << v << '\n'; }, val);
-    }
+    // cout << "\nQuantis para 'salario':\n";
+    // for (const auto& [q, val] : resultado) {
+    //     cout << q << ": ";
+    //     visit([](auto&& v) { cout << v << '\n'; }, val);
+    // }
 
-    // Média
-    double mean = calculateMeanParallel(df, "salario", pool);
-    cout << "Média da coluna 'salario': " << mean << endl;
+    // // Média
+    // double mean = calculateMeanParallel(df, "salario", pool);
+    // cout << "Média da coluna 'salario': " << mean << endl;
+
+    string file1 = "../data/accounts/accounts.csv";
+    string file2 = "../data/transactions/transactions.csv";
+
+    ThreadPool tp(5);
+
+    DataFrame* df1 = readCSV(file1, 5, {"int", "int", "float", "string", "string", "string"});
+    DataFrame* df2 = readCSV(file2, 5, {"int", "int", "int", "float", "string", "string", "string", "string"});
+        
 
     // Resumo estatístico
-    DataFrame resumo = summaryStats(df, "salario", pool);
-    cout << "\nResumo estatístico para 'salario':\n";
+    DataFrame resumo = top_10_cidades_transacoes(*df2, "location", tp);
+    cout << "\nTop 10 cidades com mais transações:\n";
     resumo.printDF();
 
     return 0;
