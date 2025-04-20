@@ -10,18 +10,35 @@ using namespace std;
 int STORAGE_BLOCKSIZE = 30000;
 int PROCESS_BLOCKSIZE = 1000;
 
+using holyTuple = tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*>;
+vector<vector<string>>* getLinesRead(holyTuple& data) {
+    return get<0>(data);
+}
+vector<vector<string>>* getBlockRead(holyTuple& data) {
+    return get<1>(data);
+}
+mutex* getMtxDB(holyTuple& data) {
+    return get<2>(data);
+}
+DataFrame* getDF(holyTuple& data) {
+    return get<3>(data);
+}
+bool* getColumnsDone(holyTuple& data) {
+    return get<4>(data);
+}
+
 static int callback(void *data, int argc, char **argv, char **azColName) 
 {
     int blocksize = STORAGE_BLOCKSIZE;
 
-    tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*> coolData = *static_cast<tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*>*>(data);
-    vector<vector<string>>* blockRead = get<1>(coolData);
-    mutex* mtxDB = get<2>(coolData);
-    bool* columnsDone = get<4>(coolData);
+    holyTuple coolData = *static_cast<holyTuple*>(data);
+    vector<vector<string>>* blockRead = getBlockRead(coolData);
+    mutex* mtxDB = getMtxDB(coolData);
+    bool* columnsDone = getColumnsDone(coolData);
     
     // Colocando os nomes das colunas no DataFrame
     if (!(*columnsDone)) {
-        DataFrame* df = get<3>(coolData);
+        DataFrame* df = getDF(coolData);
         vector<string> colNames(argc);
         *columnsDone = true;
     }
@@ -37,7 +54,7 @@ static int callback(void *data, int argc, char **argv, char **azColName)
     (*blockRead).push_back(record);
     
     if((*blockRead).size() >= blocksize) {
-        vector<vector<string>>* linesRead = get<0>(coolData);
+        vector<vector<string>>* linesRead = getLinesRead(coolData);
         mtxDB->lock();
         linesRead->insert(
             linesRead->end(),
@@ -65,7 +82,7 @@ void extractFromDB(sqlite3 *db,
     
     vector<vector<string>> blockRead;
     bool columnsDone = false;
-    tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*> data = {&linesRead, &blockRead, &mtxDB, df, &columnsDone};
+    holyTuple data = {&linesRead, &blockRead, &mtxDB, df, &columnsDone};
     
     /* Execute SQL statement */
     rc = sqlite3_exec(db, sql.data(), callback, &data, &zErrMsg);
@@ -103,6 +120,7 @@ void processDBBlocks(const vector<vector<string>>& linesRead, DataFrame* df, int
         mtxCounter.unlock();
         
         if(!canProceed) {
+
             continue;
         }
 
