@@ -1,5 +1,5 @@
-#include "df.h"
-#include "threads.h"        
+#include "..\include\df.h"
+#include "..\include\threads.h"    
 #include <thread>
 #include <chrono>
 #include <iostream>
@@ -121,11 +121,11 @@ int main() {
     for (int i = 0; i < numTasks; ++i) {
         promise<void> p;
         futures.push_back(p.get_future());
-        pool.enqueue([&, i, p = move(p)]() mutable {
+        pool.enqueue(i, [&, i, p = move(p)]() mutable {
             threadAddRecords(df, i, recordsPerTask);
-            p.set_value();  // Sinaliza que a tarefa terminou
+            p.set_value();
         });
-    }
+    }    
     
     // Aguarda todas as tarefas de adição de registros finalizarem
     for (int i = 0; i < numTasks; ++i)
@@ -140,11 +140,12 @@ int main() {
     {
         promise<void> p;
         futures.push_back(p.get_future());
-        pool.enqueue([&df, newCol, p = move(p)]() mutable {
+        pool.enqueue(100, [&df, newCol, p = move(p)]() mutable {
             threadAddColumn(df, "extra_col", "string", newCol);
             p.set_value();
         });
     }
+        
     // Aguarda a tarefa de adicionar a nova coluna finalizar
     for (auto& f : futures)
         f.wait();

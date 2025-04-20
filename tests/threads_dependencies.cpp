@@ -3,7 +3,7 @@
 #include <chrono>
 #include <set>
 #include <atomic>
-#include "threads2.h"
+#include "..\include\threads.h"
 
 mutex cout_mutex;
 
