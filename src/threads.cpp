@@ -1,5 +1,5 @@
-#include "..\include\df.h"
-#include "..\include\threads.h"    
+#include "../include/df.h"
+#include "../include/threads.h"    
 #include <thread>
 #include <chrono>
 #include <iostream>
