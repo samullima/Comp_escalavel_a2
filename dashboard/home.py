@@ -84,7 +84,6 @@ def plot_transacoes_dia(df):
     st.pyplot(fig)
 
 def show_summary_table(df):
-    st.header("Resumo Estatístico")
     st.dataframe(df, use_container_width=True)
 
 st.title("Banco")
