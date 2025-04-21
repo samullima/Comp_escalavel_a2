@@ -26,7 +26,7 @@ def gerar_contas(n_accounts, n_clients):
         num_contas_cliente = random.randint(1, 3)  
         cliente_local = random.choice(locais) 
         
-        for _ in range(num_contas_cliente):
+        for j in range(num_contas_cliente):
             if account_id_counter >= n_accounts:
                 break  
  
@@ -71,7 +71,7 @@ def gerar_clientes(n_clients):
     return pd.DataFrame(dados)
 
 
-def gerar_transacoes(df_contas, n_transactions, n_accounts):
+def gerar_transacoes(df_contas, n_transactions):
     tipos_transacoes = ["depósito", "retirada", "transferência", "pagamento"]
     dados = []
     
@@ -84,20 +84,28 @@ def gerar_transacoes(df_contas, n_transactions, n_accounts):
     ]
 
     col_cidade = df_contas["account_location"]
-    
+
+    n_accounts = len(df_contas) - 1 
+
+    # Geração das colunas de tempo
+    lista_time_starts = []
     for i in range(n_transactions):
-        account_id = random.randint(0, n_accounts - 1) 
-        recipient_id = random.randint(0, n_accounts - 1)
+        lista_time_starts.append(fake.date_time_this_year())
+    lista_time_starts.sort()
+
+    for i in range(n_transactions):
+        account_id = random.randint(0, n_accounts) 
+        recipient_id = random.randint(0, n_accounts)
         amount = round(random.uniform(10.0, 700.0), 2)
         tipo = random.choice(tipos_transacoes)
 
-        time_start = fake.date_time_this_year()
+        time_start = lista_time_starts[i]
         time_end = time_start + timedelta(seconds=random.randint(5, 60))
 
         transaction_date = time_start.date()
 
         if random.random() < 0.98:
-            # Cidade Padrão
+            # Cidade padrão
             location = col_cidade.iloc[account_id]
         else:
             # Suspeita
@@ -115,22 +123,23 @@ def gerar_transacoes(df_contas, n_transactions, n_accounts):
             "date": transaction_date
         })
 
-    return pd.DataFrame(dados)              
+    return pd.DataFrame(dados)
+
 
 # ALTERAR ESSES CAMPOS:
-n_transacoes = 100000   
-n_contas = 1000         
-n_max_clientes = 500      
-connection_obj = sqlite3.connect('data/data.db')
+n_transacoes = 1000000   
+n_contas = 10000         
+n_max_clientes = 5000      
+connection_obj = sqlite3.connect('../data/data.db')
 
-df_contas = gerar_contas(n_contas, n_max_clientes)
-df_customers = gerar_clientes(df_contas["customer_id"].iloc[-1])
-df_transactions = gerar_transacoes(df_contas, n_transacoes, n_contas)
+df_accounts = gerar_contas(n_contas, n_max_clientes)
+df_customers = gerar_clientes(df_accounts["customer_id"].iloc[-1])
+df_transactions = gerar_transacoes(df_accounts, n_transacoes)
 
-df_contas.to_sql('accounts', connection_obj, if_exists='replace', index=False)
+df_accounts.to_sql('accounts', connection_obj, if_exists='replace', index=False)
 df_customers.to_sql('customers', connection_obj, if_exists='replace', index=False)
 df_transactions.to_sql('transactions', connection_obj, if_exists='replace', index=False)
 
-df_contas.to_csv("accounts.csv", index=False)
-df_customers.to_csv("customers.csv", index=False)
-df_transactions.to_csv("transactions.csv", index=False)
+df_accounts.to_csv("../data/accounts/accounts.csv", index=False)
+df_customers.to_csv("../data/customers/customers.csv", index=False)
+df_transactions.to_csv("../data/transactions/transactions.csv", index=False)
