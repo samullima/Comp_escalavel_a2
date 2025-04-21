@@ -43,36 +43,30 @@ DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes) {
 }
 
 
-DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int num_threads, ThreadPool& pool) {
-    // Define o tamanho do bloco
-    int block_size = (df.getNumRecords() + num_threads - 1) / num_threads;
+DataFrame filter_records(DataFrame& df, int id, int numThreads, function<bool(const vector<ElementType>&)> condition, ThreadPool& pool) {
+    int block_size = (df.getNumRecords() + numThreads - 1) / numThreads;
 
-    // Define vetor de promessas e de futuros
-    vector<promise<vector<int>>> promises(num_threads);
+    vector<shared_ptr<promise<vector<int>>>> promises(numThreads);
     vector<future<vector<int>>> futures;
 
-    // Conectamos promessas e futuros (future resolvido qnd chamarmos p.set_value())
-    for (auto& p : promises) {
-        futures.push_back(p.get_future()); // Armazenamos todos os leitores para uso posterior
+    // Conectamos promessas e futuros
+    for (int i = 0; i < numThreads; ++i) {
+        promises[i] = make_shared<promise<vector<int>>>();
+        futures.push_back(promises[i]->get_future());
     }
 
-    // Para cada thread
-    for (int i = 0; i < num_threads; ++i) {
-        // Define os limites do bloco
+    for (int i = 0; i < numThreads; ++i) {
         int start = i * block_size;
         int end = min(start + block_size, df.getNumRecords());
 
-        // Cada thread processa uma lambda, que processa um bloco
-        pool.enqueue(
-            [&, start, end, i]() mutable {
-                // Recebemos o vetor filtrado e comunicamos às promessas
-                vector<int> result = filter_block_records(df, condition, start, end);
-                promises[i].set_value(move(result));
-            }
-        );
+        pool.enqueue(-id, [&, start, end, p = promises[i]]() mutable {
+            vector<int> result = filter_block_records(df, condition, start, end);
+            p->set_value(move(result));
+        });
     }
 
-    // Espera todos os resultados e junta os índices válidos
+    pool.isReady(-id);
+
     vector<int> idx_validos;
     for (auto& f : futures) {
         vector<int> res = f.get();
@@ -83,96 +77,84 @@ DataFrame filter_records(DataFrame& df, function<bool(const vector<ElementType>&
     return filter_records_by_idxes(df, idx_validos);
 }
 
-DataFrame groupby_mean(DataFrame& df, const string& group_col, const string& target_col, ThreadPool& pool) {
-    // Toma os índices das colunas relevantes
+DataFrame groupby_mean(DataFrame& df, int id, int numThreads, const string& group_col, const string& target_col, ThreadPool& pool) {
     int group_idx = df.getColumnIndex(group_col);
     int target_idx = df.getColumnIndex(target_col);
 
-    // Acessa as colunas de agrupamento e a coluna cujos valores vamos operar
     const auto& group_vec = df.columns[group_idx];
     const auto& target_vec = df.columns[target_idx];
 
     int total_records = df.getNumRecords();
-    int num_threads = pool.size();
-    int block_size = (total_records + num_threads - 1) / num_threads;
+    int block_size = (total_records + numThreads - 1) / numThreads;
 
-    // Cria promessas e futuros
-    vector<promise<unordered_map<string, pair<float, int>>>> promises(num_threads);
+    vector<shared_ptr<promise<unordered_map<string, pair<float, int>>>>> promises(numThreads);
     vector<future<unordered_map<string, pair<float, int>>>> futures;
 
     // Define o relacionamento entre promessas e futuros
-    for (auto& p : promises) {
-        futures.push_back(p.get_future());
+    for (int i = 0; i < numThreads; ++i) {
+        promises[i] = make_shared<promise<unordered_map<string, pair<float, int>>>>();
+        futures.push_back(promises[i]->get_future());
     }
 
-    // Para cada thread
-    for (int t = 0; t < num_threads; ++t) {
+    for (int t = 0; t < numThreads; ++t) {
         int start = t * block_size;
         int end = min(start + block_size, total_records);
-        
-        pool.enqueue([&, start, end, t]() mutable {
-            unordered_map<string, pair<float, int>> local_map;
 
+        pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
+            unordered_map<string, pair<float, int>> local_map;
             for (int i = start; i < end; ++i) {
-                string key = variantToString(group_vec[i]); // converte o valor da coluna de agrupamento para string
-                float value = get<float>(target_vec[i]);    // extrai o valor numérico da coluna de interesse
-                auto& acc = local_map[key]; // pega ref do acumulador da chave
+                string key = variantToString(group_vec[i]);
+                float value = get<float>(target_vec[i]);
+                auto& acc = local_map[key];
                 acc.first += value;
                 acc.second += 1;
             }
-
-            // Entrega o resultado parcial da thread via promise
-            promises[t].set_value(move(local_map));
+            p->set_value(move(local_map));
         });
     }
 
-    // Fusão dos resultados: chave -> (soma total, contagem total)
-    unordered_map<string, pair<float, int>> global_map;
+    pool.isReady(-id);
 
-    // Para cada futuro
+    // Fusão dos resultados
+    unordered_map<string, pair<float, int>> global_map;
     for (auto& f : futures) {
-        auto local = f.get(); // obtém o resultado parcial da thread (bloqueia até o valor estar disponível)
-        // Adiona o resultado local no mapa global
+        auto local = f.get();
         for (const auto& [key, val] : local) {
             global_map[key].first += val.first;
             global_map[key].second += val.second;
         }
     }
 
-    // Montagem do DataFrame de saída
+    // Novo DataFrame
     vector<string> colNames = {group_col, "mean_" + target_col};
-    vector<string> colTypes = {"int", "float"};
+    vector<string> colTypes = {"string", "float"};
     DataFrame result_df(colNames, colTypes);
 
     for (const auto& [key, pair] : global_map) {
         float mean = pair.first / pair.second;
-        result_df.addRecord({key, to_string(mean)});    // adiciona ao DataFrame como registro
+        result_df.addRecord({key, to_string(mean)});
     }
+
     return result_df;
 }
 
-DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& key_col, ThreadPool& pool) {
-    // Pega os índices das colunas relevantes
+DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, int id, int numThreads, const string& key_col, ThreadPool& pool) {
     size_t key_idx1 = df1.getColumnIndex(key_col);
     size_t key_idx2 = df2.getColumnIndex(key_col);
 
-    // Acessa as colunas de interesse
     const auto& key_col1 = df1.columns[key_idx1];
     const auto& key_col2 = df2.columns[key_idx2];
 
-    // Pré-processamento: índice para busca em df2 baseado na chave
-    unordered_map<int, vector<size_t>> df2_lookup;
     // Mapa que associa cada valor da chave em df2 a uma lista de posições onde ele aparece
-
+    unordered_map<int, vector<size_t>> df2_lookup;
     for (size_t i = 0; i < key_col2.size(); ++i) {
         // Verifica se o valor da chave naquela linha é do tipo int
         if (holds_alternative<int>(key_col2[i])) {
-            int key = get<int>(key_col2[i]);         // Extrai o valor inteiro da chave
-            df2_lookup[key].push_back(i);            // Adiciona o índice i à lista de posições dessa chave
+            int key = get<int>(key_col2[i]);
+            df2_lookup[key].push_back(i);
         }
     }
 
-    // Construir metadados do DataFrame resultante
     vector<string> result_col_names;
     vector<string> result_col_types;
 
@@ -190,65 +172,52 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& 
 
     DataFrame result(result_col_names, result_col_types);
 
-    // Paralelismo usando ThreadPool
     size_t numRecords = df1.getNumRecords();
-    int num_threads = pool.size();
-    size_t block_size = (numRecords + num_threads - 1) / num_threads;
+    size_t block_size = (numRecords + numThreads - 1) / numThreads;
 
+    vector<shared_ptr<promise<vector<vector<string>>>>> promises(numThreads);
     vector<future<vector<vector<string>>>> futures;
 
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < numThreads; ++i) {
+        promises[i] = make_shared<promise<vector<vector<string>>>>();
+        futures.push_back(promises[i]->get_future());
+    }
+
+    for (int i = 0; i < numThreads; ++i) {
         size_t start = i * block_size;
         size_t end = min(start + block_size, numRecords);
 
-        promise<vector<vector<string>>> p;
-        futures.push_back(p.get_future());
-
-        pool.enqueue([&, start, end, p = move(p)]() mutable {
+        pool.enqueue(-id, [&, start, end, p = promises[i]]() mutable {
             vector<vector<string>> local_records;
+            for (size_t idx = start; idx < end && idx < numRecords; ++idx) {
+                if (!holds_alternative<int>(key_col1[idx])) continue;
 
-            for (size_t i = start; i < end && i < numRecords; ++i) {
-                if (!holds_alternative<int>(key_col1[i])) continue;
-
-                int key = get<int>(key_col1[i]);
+                int key = get<int>(key_col1[idx]);
                 auto it = df2_lookup.find(key);
                 if (it == df2_lookup.end()) continue;
 
                 for (size_t match_idx : it->second) {
-                    vector<ElementType> joined_row;
+                    vector<string> record;
 
                     // Dados do df1
                     for (size_t j = 0; j < df1.getNumCols(); ++j) {
-                        joined_row.push_back(df1.columns[j][i]);
+                        record.push_back(variantToString(df1.columns[j][idx]));
                     }
 
                     // Dados do df2 (sem a chave)
                     for (size_t j = 0; j < df2.getNumCols(); ++j) {
                         if (j == key_idx2) continue;
-                        joined_row.push_back(df2.columns[j][match_idx]);
+                        record.push_back(variantToString(df2.columns[j][match_idx]));
                     }
-
-                    // Conversão para string
-                    vector<string> record_str;
-                    for (const auto& el : joined_row) {
-                        if (holds_alternative<int>(el)) {
-                            record_str.push_back(to_string(get<int>(el)));
-                        } else if (holds_alternative<float>(el)) {
-                            record_str.push_back(to_string(get<float>(el)));
-                        } else {
-                            record_str.push_back(get<string>(el));
-                        }
-                    }
-
-                    local_records.push_back(record_str);
+                    local_records.push_back(record);
                 }
             }
-
-            p.set_value(move(local_records));
+            p->set_value(move(local_records));
         });
     }
 
-    // Fusão dos resultados
+    pool.isReady(-id);
+
     for (auto& f : futures) {
         auto local = f.get();
         for (const auto& record : local) {
@@ -259,101 +228,92 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, const string& 
     return result;
 }
 
-DataFrame count_values(const DataFrame& df, const string& colName, ThreadPool& pool)
-{
+DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool) {
     int colIdx = df.getColumnIndex(colName);
-    vector<ElementType> column = df.getColumn(colIdx);
+    const vector<ElementType>& column = df.columns[colIdx];
     size_t dataSize = column.size();
 
-    int numThreads = pool.size();
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
+    vector<shared_ptr<promise<unordered_map<string, int>>>> promises(numThreads);
     vector<future<unordered_map<string, int>>> futures;
 
     // Cálculo de contagens para cada thread
-    for (int t=0; t<numThreads; t++)
-    {
+    for (int t = 0; t < numThreads; ++t) {
+        // Criando uma promise para um future
+        promises[t] = make_shared<promise<unordered_map<string, int>>>();
+        futures.push_back(promises[t]->get_future());
+
         size_t start = t * blockSize;
         size_t end = min(start + blockSize, dataSize);
+
         if (start >= end) break;
 
-        // Criando uma promise para um future
-        auto promise = make_shared<std::promise<unordered_map<string, int>>>();
-        futures.push_back(promise->get_future());
-
         // Enfileira tarefa no threadpool
-        pool.enqueue([start, end, &column, promise]() {
-            // Contagem
-            unordered_map<string, int> localCounts;
-            for (size_t i = start; i < end; i++) {
-                const ElementType& val = column[i];
-                string valStr = variantToString(val);
-                localCounts[valStr]++;
+        pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
+            unordered_map<string, int> local_count;
+            for (size_t i = start; i < end; ++i) {
+                string key = variantToString(column[i]);
+                local_count[key]++;
             }
             // Desbloqueia o future e envia o valor a ele
-            promise->set_value(move(localCounts));
+            p->set_value(move(local_count));
         });
     }
 
-     // Junta os resultados
-     unordered_map<string, int> counts;
-     for (auto& f : futures) {
+    pool.isReady(-id);
+
+    // Junta os resultados
+    unordered_map<string, int> global_count;
+    for (auto& f : futures) {
         // f.get() é bloqueado até que a thred mande o valor da promise ao future
-        unordered_map<string, int> localMap = f.get();
-        for (const auto& pair : localMap) {
-            counts[pair.first] += pair.second;
-         }
-     }
-
-    // Novas colunas
-    vector<ElementType> values;
-    vector<ElementType> frequencies;
-
-    // Adicionando valores às colunas
-    for (const auto& pair: counts)
-    {
-        values.push_back(pair.first);
-        frequencies.push_back(pair.second);
+        auto local = f.get();
+        for (const auto& [key, count] : local) {
+            global_count[key] += count;
+        }
     }
 
     // Pegando tipo da coluna original
     int idxColumn = df.getColumnIndex(colName);
     string typeColumn = df.getColumnType(idxColumn);
 
-    // Novo DataFrame
-    vector<string> colNames = {"value", "count"};
+    vector<string> colNames = {colName, "count"};
     vector<string> colTypes = {typeColumn, "int"};
-
     DataFrame result(colNames, colTypes);
-    result.addColumn(values, "value", typeColumn);
-    result.addColumn(frequencies, "count", "int");
+
+    // Adicionando registros
+    for (const auto& [key, count] : global_count) {
+        result.addRecord({key, to_string(count)});
+    }
 
     return result;
 }
 
-DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPool& pool)
+DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool)
 {
     int idxColumn = df.getColumnIndex(colName);
     vector<ElementType> timeColumn = df.getColumn(idxColumn);
 
     size_t dataSize = timeColumn.size();
-    int numThreads = pool.size();
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
+    
+    vector<shared_ptr<promise<vector<string>>>> promises(numThreads);
     vector<future<vector<string>>> futures;
 
     for (int t = 0; t < numThreads; ++t)
     {
+        // Criando uma promise para um future
+        promises[t] = make_shared<promise<vector<string>>>();
+        futures.push_back(promises[t]->get_future());
+        
         size_t start = t * blockSize;
         size_t end = min(start + blockSize, dataSize);
         if (start >= end) break;
-
-        auto promise = make_shared<std::promise<vector<string>>>();
-        futures.push_back(promise->get_future());
-
+        
+        cout << "get hour thread " << endl;
         // Enfileira a tarefa
-        pool.enqueue([start, end, &timeColumn, promise]() {
+        pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
             vector<string> partialResult;
-            //partialResult.reserve(end - start); // pode ser útil para o desempenho
 
             for (size_t i = start; i < end; i++)
             {
@@ -368,14 +328,17 @@ DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPoo
                     partialResult.push_back("");
                 }
             }
-
-            promise->set_value(move(partialResult));
+            // Desbloqueia o future e envia o valor a ele
+            p->set_value(move(partialResult));
         });
     }
 
+    cout << "aaa" << endl;
+    pool.isReady(-id);
+
+
     // Junta os resultados
     vector<string> hoursColumn;
-    //hoursColumn.reserve(dataSize); // pode ser útil para o desempenho
     for (auto& f : futures)
     {
         vector<string> partial = f.get();
@@ -403,9 +366,9 @@ DataFrame get_hour_by_time(const DataFrame& df, const string& colName, ThreadPoo
     return dfHours;
 }
 
-DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const string& class_first, const string& class_sec, ThreadPool& tp) {
+DataFrame classify_accounts_parallel(DataFrame& df, int id, int numThreads, const string& idCol, const string& class_first, const string& class_sec, ThreadPool& tp) {
     // Toma os índices das colunas relevantes
-    int id_idx    = df.getColumnIndex(id);
+    int id_idx    = df.getColumnIndex(idCol);
     int media_idx = df.getColumnIndex(class_first);
     int saldo_idx = df.getColumnIndex(class_sec);
 
@@ -415,15 +378,14 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
     auto saldo_col = df.getColumn(saldo_idx);
 
     int numRecords = df.getNumRecords();
-    int num_threads = tp.size();
-    int block_size = (numRecords + num_threads - 1) / num_threads;
+    int block_size = (numRecords + numThreads - 1) / numThreads;
 
     // Promises comunicação de threads
     vector<future<vector<ElementType>>> futures_ids;
     vector<future<vector<ElementType>>> futures_categorias;
 
     // Para cada thread
-    for (int t = 0; t < num_threads; ++t) {
+    for (int t = 0; t < numThreads; ++t) {
         // Define os limites do bloco
         int start = t * block_size;
         int end = min(start + block_size, numRecords);
@@ -435,12 +397,12 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
         futures_categorias.push_back(p_categorias.get_future());
 
         // Cada thread processa uma lambda, que processa um bloco
-        tp.enqueue(
+        tp.enqueue(-id, 
             [start, end, &id_col, &media_col, &saldo_col, p_ids = move(p_ids), p_categorias = move(p_categorias)]() mutable {
                 // Cria um vetor local pra armazenar resultados do bloco
                 vector<ElementType> ids, categorias;
     
-                // Para cada entrada do blobo
+                // Para cada entrada do bloco
                 for (int i = start; i < end; ++i) {
                     // Verifica se os valores estão no formato certo
                     if (!holds_alternative<int>(id_col[i]) || 
@@ -473,6 +435,7 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
             }
         );
     }
+    tp.isReady(-id);
 
     // Espera todas as threads e junta os resultados
     vector<string> colNames = {"account_id", "categoria"};
@@ -480,7 +443,7 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
     DataFrame result(colNames, colTypes);
 
     // Para cada thread
-    for (int t = 0; t < num_threads; ++t) {
+    for (int t = 0; t < numThreads; ++t) {
         // Pegue os resultados dos futuros
         auto ids = futures_ids[t].get();
         auto categorias = futures_categorias[t].get();
@@ -495,18 +458,17 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
     return result;
 }
 
-DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending) {
+DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, const string& key_col, ThreadPool& pool, bool ascending) {
     size_t key_idx = df.getColumnIndex(key_col);
     const auto& key_column = df.columns[key_idx];
     size_t n = df.getNumRecords();
     vector<size_t> indices(n);
     iota(indices.begin(), indices.end(), 0);
 
-    int num_threads = pool.size();
-    size_t block_size = (n + num_threads - 1) / num_threads;
+    size_t block_size = (n + numThreads - 1) / numThreads;
 
-    vector<vector<size_t>> sorted_blocks(num_threads);
-    vector<promise<void>> promises(num_threads);
+    vector<vector<size_t>> sorted_blocks(numThreads);
+    vector<promise<void>> promises(numThreads);
     vector<future<void>> futures;
 
     // Relaciona promessas e futuros
@@ -515,11 +477,11 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
     }
 
     // Lança as tarefas no pool
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < numThreads; ++i) {
         size_t start = i * block_size;
         size_t end = min(start + block_size, n);
 
-        pool.enqueue([&, start, end, i]() {
+        pool.enqueue(-id, [&, start, end, i]() {
             vector<size_t> local(indices.begin() + start, indices.begin() + end);
             sort(local.begin(), local.end(), [&](size_t a, size_t b) {
                 if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
@@ -537,6 +499,8 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
         });
     }
 
+    pool.isReady(-id);
+
     for (auto& f : futures) f.get();
 
     // Merge com heap
@@ -546,9 +510,9 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
         return ascending ? fvalA > fvalB : fvalA < fvalB;
     };
     priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
-    vector<size_t> pos(num_threads, 0);
+    vector<size_t> pos(numThreads, 0);
 
-    for (int i = 0; i < num_threads; ++i)
+    for (int i = 0; i < numThreads; ++i)
         if (!sorted_blocks[i].empty())
             pq.emplace(sorted_blocks[i][0], i);
 
@@ -591,10 +555,10 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
     return result;
 }
 
-unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
+unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int numThreads, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
     unordered_map<string, ElementType> result;
 
-    DataFrame sorted_df = sort_by_column_parallel(df, colName, pool, true);
+    DataFrame sorted_df = sort_by_column_parallel(df, id, numThreads, colName, pool, true);
     const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
     int n = sorted_df.getNumRecords();
 
@@ -635,17 +599,16 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const strin
     return result;
 }
 
-double calculateMeanParallel(const DataFrame& df, const string& target_col, ThreadPool& pool) {
+double calculateMeanParallel(const DataFrame& df, int id, int numThreads, const string& target_col, ThreadPool& pool) {
     // Obtém o índice da coluna de interesse
     int target_idx = df.getColumnIndex(target_col);
     const auto& target_vec = df.columns[target_idx];
 
     int total_records = df.getNumRecords();
-    int num_threads = pool.size();
-    int block_size = (total_records + num_threads - 1) / num_threads;
+    int block_size = (total_records + numThreads - 1) / numThreads;
 
     // Cria promessas e futuros
-    vector<promise<pair<double, int>>> promises(num_threads);
+    vector<promise<pair<double, int>>> promises(numThreads);
     vector<future<pair<double, int>>> futures;
 
     // Relacionamento entre promessas e futuros
@@ -654,11 +617,11 @@ double calculateMeanParallel(const DataFrame& df, const string& target_col, Thre
     }
 
     // Divide o trabalho entre as threads
-    for (int t = 0; t < num_threads; ++t) {
+    for (int t = 0; t < numThreads; ++t) {
         int start = t * block_size;
         int end = min(start + block_size, total_records);
 
-        pool.enqueue([&, start, end, t]() mutable {
+        pool.enqueue(-id, [&, start, end, t]() mutable {
             double local_sum = 0.0;
             int count = 0;
 
@@ -677,6 +640,8 @@ double calculateMeanParallel(const DataFrame& df, const string& target_col, Thre
         });
     }
 
+    pool.isReady(-id);
+
     // Fusão dos resultados
     double total_sum = 0.0;
     int total_count = 0;
@@ -691,10 +656,10 @@ double calculateMeanParallel(const DataFrame& df, const string& target_col, Thre
     return total_count > 0 ? total_sum / total_count : 0.0;
 }
 
-DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& pool) {
+DataFrame summaryStats(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool) {
     // Quantis que queremos calcular
     vector<double> quantilesToCompute = {0.0, 0.25, 0.5, 0.75, 1.0};
-    unordered_map<string, ElementType> quantile_results = getQuantiles(df, colName, quantilesToCompute, pool);
+    unordered_map<string, ElementType> quantile_results = getQuantiles(df, id, numThreads, colName, quantilesToCompute, pool);
     
     for (auto& [label, val] : quantile_results) {
         if (holds_alternative<int>(val)) {
@@ -703,7 +668,7 @@ DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& p
     }
 
     // Calcula a média
-    double mean = calculateMeanParallel(df, colName, pool);
+    double mean = calculateMeanParallel(df, id, numThreads, colName, pool);
 
     // Monta os nomes e tipos do DataFrame de saída
     vector<string> colNames = {"statistic", "value"};
@@ -723,12 +688,12 @@ DataFrame summaryStats(const DataFrame& df, const string& colName, ThreadPool& p
     return summary_df;
 }
 
-DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, ThreadPool& pool) {
+DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool) {
     // Conta o número de transações por cidade
-    DataFrame contagem = count_values(df, colName, pool);
+    DataFrame contagem = count_values(df, id, numThreads, colName, pool);
 
     // Ordena de forma decrescente pelo número de transações
-    DataFrame ordenado = sort_by_column_parallel(contagem, contagem.getColumnName(1), pool, false);
+    DataFrame ordenado = sort_by_column_parallel(contagem, id, numThreads, contagem.getColumnName(1), pool, false);
 
     // Monta os nomes e tipos do DataFrame de saída
     vector<string> colNames = {"location", "num_trans"};
@@ -748,9 +713,9 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, 
     return top_10;
 }
 
-DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
+DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
 {
-    unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, amountCol, {0.25, 0.75}, pool);
+    unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, id, numThreads, amountCol, {0.25, 0.75}, pool);
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
@@ -761,7 +726,6 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
 
     size_t dataSize = dfTransac.getNumRecords();
-    int numThreads = pool.size();
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
     // cout << "Data Size: " << dataSize << endl;
@@ -791,6 +755,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
         accountLocationMap[id] = loc;
     }
 
+    vector<shared_ptr<promise<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>>> promises(numThreads);
     vector<future<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>> futures;
 
     for (int t = 0; t < numThreads; ++t)
@@ -799,12 +764,12 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
         size_t end = std::min(start + blockSize, dataSize);
         if (start >= end) break;
 
-        auto promise = make_shared<std::promise<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>>();
-        futures.push_back(promise->get_future());
+        promises[t] = make_shared<promise<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>>();
+        futures.push_back(promises[t]->get_future());
 
-        pool.enqueue([start, end, lower, upper,
+        pool.enqueue(-id, [start, end, lower, upper,
                     &colTrans, &colAmount, &colLocationTransac, &colAccountTransac, 
-                    &colAccountAccount, &colLocationAccount, &accountLocationMap, promise]() {
+                    &colAccountAccount, &colLocationAccount, &accountLocationMap, p = promises[t]]() {
             vector<ElementType> ids;
             vector<ElementType> suspiciousLocation;
             vector<ElementType> suspiciousAmount;
@@ -830,10 +795,11 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
                 }
             }
 
-            promise->set_value(make_tuple(move(ids), move(suspiciousLocation), move(suspiciousAmount)));
+            p->set_value(make_tuple(move(ids), move(suspiciousLocation), move(suspiciousAmount)));
         });
     }
 
+    pool.isReady(-id);
 
     // Juntando resultados das threads
     vector<ElementType> ids, suspiciousLocation, suspiciousAmount;
@@ -857,6 +823,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
 
     return result;
 }
+
 
 
 
