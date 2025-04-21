@@ -86,7 +86,18 @@ def plot_transacoes_dia(df):
 def show_summary_table(df):
     st.dataframe(df, use_container_width=True)
 
-st.title("Banco")
+# Título
+st.markdown(
+    """
+    <style>
+    .center-title {
+        text-align: center;
+    }
+    </style>
+    <h1 class="center-title">Banco</h1>
+    """,
+    unsafe_allow_html=True
+)
 
 if st.button("🔄 Refresh"):
     st.success("Dados atualizados!")
@@ -98,6 +109,13 @@ if st.button("🔄 Refresh"):
 
     # Plots
     st.header("Distribuição das Classes de Conta")
+    st.markdown("""
+    **Classes Presentes:** 
+    - **A**: se a média de transações for superior a 500.
+    - **B**: se a média de transações estiver entre 200 e 500 **e** o saldo for maior que 10.000.
+    - **C**: se a média de transações estiver entre 200 e 500 **e** o saldo for menor ou igual a 10.000.
+    - **C**: se a média de transações for inferior a 200.
+    """)
     plot_classificacao_contas(df_classificacao)
 
     st.header("Quantidade de Transações por Cidade")
