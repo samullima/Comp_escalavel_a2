@@ -496,70 +496,72 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
 }
 
 DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, ThreadPool& pool, bool ascending) {
-	size_t key_idx = df.getColumnIndex(key_col);
-	const auto& key_column = df.columns[key_idx];
-	size_t n = df.getNumRecords();
-	vector<size_t> indices(n);
-	iota(indices.begin(), indices.end(), 0);
+    size_t key_idx = df.getColumnIndex(key_col);
+    const auto& key_column = df.columns[key_idx];
+    size_t n = df.getNumRecords();
+    vector<size_t> indices(n);
+    iota(indices.begin(), indices.end(), 0);
 
-	int num_threads = pool.size();
-	size_t block_size = (n + num_threads - 1) / num_threads;
-	vector<vector<size_t>> sorted_blocks(num_threads);
-	vector<future<void>> futures;
+    int num_threads = pool.size();
+    size_t block_size = (n + num_threads - 1) / num_threads;
 
-	for (int i = 0; i < num_threads; ++i) {
-		size_t start = i * block_size;
-		size_t end = min(start + block_size, n);
-		vector<future<void>> futures;
+    vector<vector<size_t>> sorted_blocks(num_threads);
+    vector<promise<void>> promises(num_threads);
+    vector<future<void>> futures;
 
-		for (int i = 0; i < num_threads; ++i) {
-			size_t start = i * block_size;
-			size_t end = min(start + block_size, n);
-            // faz a ordenação
-			futures.push_back(async(std::launch::async, [&, start, end, i]() {
-				vector<size_t> local(indices.begin() + start, indices.begin() + end);
-				sort(local.begin(), local.end(), [&](size_t a, size_t b) {
-                    if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
-                        return ascending ? get<int>(key_column[a]) < get<int>(key_column[b]) 
-                                         : get<int>(key_column[a]) > get<int>(key_column[b]);
-                    }
-                    if (holds_alternative<float>(key_column[a]) && holds_alternative<float>(key_column[b])) {
-                        return ascending ? get<float>(key_column[a]) < get<float>(key_column[b]) 
-                                         : get<float>(key_column[a]) > get<float>(key_column[b]);
-                    }
-                    return false;
-                });
-				sorted_blocks[i] = move(local);
-			}));
-		}
+    // Relaciona promessas e futuros
+    for (auto& p : promises) {
+        futures.push_back(p.get_future());
+    }
 
-	}
+    // Lança as tarefas no pool
+    for (int i = 0; i < num_threads; ++i) {
+        size_t start = i * block_size;
+        size_t end = min(start + block_size, n);
 
-	for (auto& f : futures) f.get();
+        pool.enqueue([&, start, end, i]() {
+            vector<size_t> local(indices.begin() + start, indices.begin() + end);
+            sort(local.begin(), local.end(), [&](size_t a, size_t b) {
+                if (holds_alternative<int>(key_column[a]) && holds_alternative<int>(key_column[b])) {
+                    return ascending ? get<int>(key_column[a]) < get<int>(key_column[b])
+                                     : get<int>(key_column[a]) > get<int>(key_column[b]);
+                }
+                if (holds_alternative<float>(key_column[a]) && holds_alternative<float>(key_column[b])) {
+                    return ascending ? get<float>(key_column[a]) < get<float>(key_column[b])
+                                     : get<float>(key_column[a]) > get<float>(key_column[b]);
+                }
+                return false;
+            });
+            sorted_blocks[i] = move(local);
+            promises[i].set_value();
+        });
+    }
 
-	// merge com heap
-	auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
+    for (auto& f : futures) f.get();
+
+    // Merge com heap
+    auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
         float fvalA = holds_alternative<int>(key_column[a.first]) ? static_cast<float>(get<int>(key_column[a.first])) : get<float>(key_column[a.first]);
         float fvalB = holds_alternative<int>(key_column[b.first]) ? static_cast<float>(get<int>(key_column[b.first])) : get<float>(key_column[b.first]);
         return ascending ? fvalA > fvalB : fvalA < fvalB;
     };
-	priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
-	vector<size_t> pos(num_threads, 0);
+    priority_queue<pair<size_t, int>, vector<pair<size_t, int>>, decltype(cmp)> pq(cmp);
+    vector<size_t> pos(num_threads, 0);
 
-	for (int i = 0; i < num_threads; ++i)
-		if (!sorted_blocks[i].empty())
-			pq.emplace(sorted_blocks[i][0], i);
+    for (int i = 0; i < num_threads; ++i)
+        if (!sorted_blocks[i].empty())
+            pq.emplace(sorted_blocks[i][0], i);
 
-	vector<size_t> final_indices;
-	while (!pq.empty()) {
-		auto [idx, block] = pq.top();
-		pq.pop();
-		final_indices.push_back(idx);
-		if (++pos[block] < sorted_blocks[block].size())
-			pq.emplace(sorted_blocks[block][pos[block]], block);
-	}
+    vector<size_t> final_indices;
+    while (!pq.empty()) {
+        auto [idx, block] = pq.top();
+        pq.pop();
+        final_indices.push_back(idx);
+        if (++pos[block] < sorted_blocks[block].size())
+            pq.emplace(sorted_blocks[block][pos[block]], block);
+    }
 
-	// Construir metadados do DataFrame resultante
+    // Construir metadados do DataFrame resultante
     vector<string> result_col_names;
     vector<string> result_col_types;
 
@@ -567,24 +569,26 @@ DataFrame sort_by_column_parallel(const DataFrame& df, const string& key_col, Th
         result_col_names.push_back(name);
         result_col_types.push_back(df.colTypes.at(name));
     }
-	DataFrame result(result_col_names, result_col_types);
-	for (size_t i : final_indices) {
-		vector<string> record;
-		for (size_t j = 0; j < df.getNumCols(); ++j) {
-			const auto& val = df.columns[j][i];
-			if (holds_alternative<int>(val)) {
-				record.push_back(to_string(get<int>(val)));
-			} else if (holds_alternative<float>(val)) {
-				record.push_back(to_string(get<float>(val)));
-			} else if (holds_alternative<bool>(val)) {
-				record.push_back(get<bool>(val) ? "true" : "false");
-			} else if (holds_alternative<string>(val)) {
-				record.push_back(get<string>(val));
-			}
-		}
-		result.addRecord(record);
-	}
-	return result;
+
+    DataFrame result(result_col_names, result_col_types);
+    for (size_t i : final_indices) {
+        vector<string> record;
+        for (size_t j = 0; j < df.getNumCols(); ++j) {
+            const auto& val = df.columns[j][i];
+            if (holds_alternative<int>(val)) {
+                record.push_back(to_string(get<int>(val)));
+            } else if (holds_alternative<float>(val)) {
+                record.push_back(to_string(get<float>(val)));
+            } else if (holds_alternative<bool>(val)) {
+                record.push_back(get<bool>(val) ? "true" : "false");
+            } else if (holds_alternative<string>(val)) {
+                record.push_back(get<string>(val));
+            }
+        }
+        result.addRecord(record);
+    }
+
+    return result;
 }
 
 unordered_map<string, ElementType> getQuantiles(const DataFrame& df, const string& colName, const vector<double>& quantiles, ThreadPool& pool) {
@@ -744,79 +748,9 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, const string& colName, 
     return top_10;
 }
 
-// DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool)
-// {
-//     // Obtendo os Quantis da coluna amount
-//     unordered_map<string, ElementType> quantiles = getQuantiles(df, amountCol, {0.25, 0.75}, pool);
-//     float q1 = get<float>(quantiles["Q25"]);
-//     float q3 = get<float>(quantiles["Q75"]);
-//     float iqr = q3 - q1;
-
-//     // Limites
-//     float lower = (q1 - 1.5f * iqr < 0) ? 1.0f : (q1 - 1.5f * iqr);
-//     float upper = q3 + 1.5f * iqr;
-
-//     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
-
-//     int idxTrans = df.getColumnIndex(transactionIDCol);
-//     int idxAmount = df.getColumnIndex(amountCol);
-//     int idxLocation = df.getColumnIndex(locationCol);
-//     int idxAccount = df.getColumnIndex(accountCol);
-
-//     vector<ElementType> ids;
-//     vector<ElementType> suspiciousLocation;
-//     vector<ElementType> suspiciousAmount;
-
-//     size_t dataSize = df.getNumRecords();
-//     int numThreads = pool.size();
-//     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
-//     vector<future<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>> futures;
-
-//     // Encontrando anormalidades
-//     for (int i=0; i<df.getNumRecords(); i++)
-//     {
-//         float amount = get<float>(df.getColumn(idxAmount)[i]);
-//         string location = get<string>(df.getColumn(idxLocation)[i]);
-//         int id = get<int>(df.getColumn(idxTrans)[i]);
-//         int accountID = get<int>(df.getColumn(idxAccount)[i]);
-
-//         bool isAmountSus = (amount < lower || amount > upper);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
-//         bool isLocationSus = false;
-//         auto& seenLocations = accountSeenLocations[accountID];
-
-//         if (seenLocations.find(location) == seenLocations.end()) {
-//             if (!seenLocations.empty()) {
-//                 // Localização nova para essa conta
-//                 isLocationSus = true;
-//             }
-//             seenLocations.insert(location);
-//         }
-
-//         if (isAmountSus == true || isLocationSus == true)
-//         {
-//             ids.push_back(id);
-//             suspiciousLocation.push_back(isLocationSus);
-//             suspiciousAmount.push_back(isAmountSus);
-//         }
-//     }
-
-//     // DataFrame Resultado
-//     string typeColumn = df.getColumnType(idxTrans);
-//     vector<string> colNames = {transactionIDCol, "is_location_suspicious", "is_amount_suspicious"};
-//     vector<string> colTypes = {typeColumn, "bool", "bool"};
-
-//     DataFrame result(colNames, colTypes);
-//     result.addColumn(ids, transactionIDCol, typeColumn);
-//     result.addColumn(suspiciousLocation, "is_location_suspicious", "bool");
-//     result.addColumn(suspiciousAmount, "is_amount_suspicious", "bool");
-
-//     return result;
-// }
-
-DataFrame abnormal_transactions(const DataFrame& df, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountCol, ThreadPool& pool)
+DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
 {
-    unordered_map<string, ElementType> quantiles = getQuantiles(df, amountCol, {0.25, 0.75}, pool);
+    unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, amountCol, {0.25, 0.75}, pool);
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
@@ -826,7 +760,7 @@ DataFrame abnormal_transactions(const DataFrame& df, const string& transactionID
 
     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
 
-    size_t dataSize = df.getNumRecords();
+    size_t dataSize = dfTransac.getNumRecords();
     int numThreads = pool.size();
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
@@ -834,15 +768,28 @@ DataFrame abnormal_transactions(const DataFrame& df, const string& transactionID
     // cout << "Num Threads: " << numThreads << endl;
     // cout << "Block Size: " << blockSize << endl;
 
-    int idxTrans = df.getColumnIndex(transactionIDCol);
-    int idxAmount = df.getColumnIndex(amountCol);
-    int idxLocation = df.getColumnIndex(locationCol);
-    int idxAccount = df.getColumnIndex(accountCol);
+    int idxTrans = dfTransac.getColumnIndex(transactionIDCol);
+    int idxAmount = dfTransac.getColumnIndex(amountCol);
+    int idxLocation = dfTransac.getColumnIndex(locationCol);
+    int idxAccountTransac = dfTransac.getColumnIndex(accountColTransac);
+    int idxAccountAccount = dfAccount.getColumnIndex(accountColAccount);
+    int idxLocationAccount = dfAccount.getColumnIndex(locationColAccount);
 
-    const vector<ElementType>& colTrans = df.getColumn(idxTrans);
-    const vector<ElementType>& colAmount = df.getColumn(idxAmount);
-    const vector<ElementType>& colLocation = df.getColumn(idxLocation);
-    const vector<ElementType>& colAccount = df.getColumn(idxAccount);
+    const vector<ElementType>& colTrans = dfTransac.getColumn(idxTrans);
+    const vector<ElementType>& colAmount = dfTransac.getColumn(idxAmount);
+    const vector<ElementType>& colLocationTransac = dfTransac.getColumn(idxLocation);
+    const vector<ElementType>& colAccountTransac = dfTransac.getColumn(idxAccountTransac);
+    const vector<ElementType>& colAccountAccount = dfAccount.getColumn(idxAccountAccount);
+    const vector<ElementType>& colLocationAccount = dfAccount.getColumn(idxLocationAccount);
+
+    // Mapeando todos os ids de conta para as suas localizações
+    unordered_map<int, string> accountLocationMap;
+    for (int i = 0; i < dfAccount.getNumRecords(); i++) 
+    {
+        int id = get<int>(colAccountAccount[i]);
+        string loc = get<string>(colLocationAccount[i]);
+        accountLocationMap[id] = loc;
+    }
 
     vector<future<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>> futures;
 
@@ -856,29 +803,25 @@ DataFrame abnormal_transactions(const DataFrame& df, const string& transactionID
         futures.push_back(promise->get_future());
 
         pool.enqueue([start, end, lower, upper,
-                    &colTrans, &colAmount, &colLocation, &colAccount, promise]() {
+                    &colTrans, &colAmount, &colLocationTransac, &colAccountTransac, 
+                    &colAccountAccount, &colLocationAccount, &accountLocationMap, promise]() {
             vector<ElementType> ids;
             vector<ElementType> suspiciousLocation;
             vector<ElementType> suspiciousAmount;
-            unordered_map<int, unordered_set<string>> accountSeenLocations;
 
-            for (size_t i = start; i < end; i++) {
+            for (size_t i = start; i < end; i++) 
+            {
                 float amount = get<float>(colAmount[i]);
-                string location = get<string>(colLocation[i]);
+                string locationTransac = get<string>(colLocationTransac[i]);
                 int id = get<int>(colTrans[i]);
-                int accountID = get<int>(colAccount[i]);
+                int accountIDTransac = get<int>(colAccountTransac[i]);
+                
+                // Pegando a localização da conta em account
+                auto it = accountLocationMap.find(accountIDTransac);
+                string locationAccount = it->second;
 
                 bool isAmountSus = (amount < lower || amount > upper);
-                bool isLocationSus = false;
-
-                auto& seenLocations = accountSeenLocations[accountID];
-                if (seenLocations.find(location) == seenLocations.end()) {
-                    if (!seenLocations.empty()) {
-                        // Nova localidade para a conta
-                        isLocationSus = true;
-                    }
-                    seenLocations.insert(location);
-                }
+                bool isLocationSus = (locationTransac != locationAccount);
 
                 if (isAmountSus || isLocationSus) {
                     ids.push_back(id);
@@ -903,7 +846,7 @@ DataFrame abnormal_transactions(const DataFrame& df, const string& transactionID
     }
 
     // Monta o DataFrame
-    string typeColumn = df.getColumnType(idxTrans);
+    string typeColumn = dfTransac.getColumnType(idxTrans);
     vector<string> colNames = {transactionIDCol, "is_location_suspicious", "is_amount_suspicious"};
     vector<string> colTypes = {typeColumn, "bool", "bool"};
 
@@ -914,3 +857,18 @@ DataFrame abnormal_transactions(const DataFrame& df, const string& transactionID
 
     return result;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
