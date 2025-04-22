@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
-#include "include/df.h"
-#include "include/csv_extractor.h"
+#include "../include/df.h"
+#include "../include/csv_extractor.h"
+#include "../include/threads.h"
 
 int NUM_THREADS = 2;
 
@@ -15,12 +16,13 @@ int main(int argc, char* argv[]) {
         }
     }
     cout << "Número de threads: " << NUM_THREADS << endl;
+    ThreadPool pool(NUM_THREADS);
 
     // Nome do arquivo CSV
     string filename = "data/transactions/transactions.csv";    
 
     vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
-    DataFrame * df = readCSV(filename, NUM_THREADS, colTypes);
+    DataFrame * df = readCSV(1, filename, NUM_THREADS, colTypes, pool);
     // df->printDF();
     cout << "Deu certo" << endl;
     cout << "Número de colunas: " << df->numCols << endl;

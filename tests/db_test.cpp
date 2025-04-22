@@ -3,8 +3,9 @@
 #include <vector>
 #include <thread>
 #include <chrono>
-#include "include/df.h"
-#include "include/sql_extractor.h"
+#include "../include/df.h"
+#include "../include/sql_extractor.h"
+#include "../include/threads.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -20,12 +21,13 @@ int main(int argc, char* argv[]) {
         }
     }
     cout << "Número de threads: " << numThreads << endl;
+    ThreadPool pool(numThreads);
 
     string file1 = "data/data.db";
     string tableName = "transactions";
-    vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
+    vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string", "string"};
     chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
-    DataFrame *df = readDB(file1, tableName, numThreads, colTypes);
+    DataFrame *df = readDB(1, file1, tableName, numThreads, colTypes, pool);
     chrono::high_resolution_clock::time_point end = chrono::high_resolution_clock::now();
     auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
     cout << "Tempo de execução: " << duration.count() << " ms" << endl;
