@@ -377,12 +377,12 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
 
 DataFrame classify_accounts_parallel(DataFrame& df, int id, int numThreads, const string& idCol, const string& class_first, const string& class_sec, ThreadPool& tp) {
     // Toma os índices das colunas relevantes
-    int id_idx    = df.getColumnIndex(idCol);
+    int id_idx = df.getColumnIndex(idCol);
     int media_idx = df.getColumnIndex(class_first);
     int saldo_idx = df.getColumnIndex(class_sec);
 
     // Busca as colunas relevantes
-    auto id_col    = df.getColumn(id_idx);
+    auto id_col = df.getColumn(id_idx);
     auto media_col = df.getColumn(media_idx);
     auto saldo_col = df.getColumn(saldo_idx);
 

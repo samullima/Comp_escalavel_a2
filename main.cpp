@@ -27,9 +27,11 @@ enum PoolID {
     READ_ACCOUNTS = 2,
     READ_CUSTOMERS = 3,
     ABNORMAL = 4,
-    CLASSIFICATION = 5,
-    TOP_CITIES = 6,
-    STATS = 7
+    AMOUNT_MEAN = 5,
+    JOIN = 6,
+    CLASSIFICATION = 7,
+    TOP_CITIES = 8,
+    STATS = 9
 };
 
 int main() {
@@ -105,8 +107,25 @@ int main() {
 
     cout << "\n\n--------------------------" << endl;
     cout << "[ CLASSIFICANDO CLIENTES ]" << endl;
+    
+    auto amountMean = pool.enqueue(AMOUNT_MEAN, [&]() {
+        return groupby_mean(*transactions, 5, NUM_THREADS, "account_id", "amount", pool);
+    });
+    pool.isReady(AMOUNT_MEAN);
+
+    cout << "Agrupando as contas de fazendo a média dos valores..." << endl;
+    DataFrame grouped = amountMean.get();
+
+    auto join = pool.enqueue(JOIN, [&](){
+        return join_by_key(grouped, *accounts, 6, NUM_THREADS, "account_id", pool);
+    });
+    pool.isReady(JOIN);
+
+    cout << "Juntando DataFrame agrupado com accounts..." << endl;
+    DataFrame dfJoin = join.get();
+
     auto classifications = pool.enqueue(CLASSIFICATION, [&]() {
-        return classify_accounts_parallel(*customers, 5, NUM_THREADS, "customer_id", "current_balance", "account_type", pool);
+        return classify_accounts_parallel(dfJoin, 7, NUM_THREADS, "customer_id", "mean_amount", "current_balance", pool);
     });
     pool.isReady(CLASSIFICATION);
 
@@ -124,7 +143,7 @@ int main() {
     cout << "\n\n--------------------------" << endl;
     cout << "[ IDENTIFICANDO LOCALIDADES MAIS ATIVAS ]" << endl;
     auto top_10_cities = pool.enqueue(TOP_CITIES, [&]() {
-        return top_10_cidades_transacoes(*transactions, 6, NUM_THREADS, "location", pool);
+        return top_10_cidades_transacoes(*transactions, 8, NUM_THREADS, "location", pool);
     });
     pool.isReady(TOP_CITIES);
     DataFrame top_cities = top_10_cities.get();
@@ -138,7 +157,7 @@ int main() {
     cout << "\n\n--------------------------" << endl;
     cout << "[ CALCULANDO ESTATÍSTICAS DESCRITIVAS ]" << endl;
     auto stats = pool.enqueue(STATS, [&]() {
-        return summaryStats(*transactions, 7, NUM_THREADS, "amount", pool);
+        return summaryStats(*transactions, 9, NUM_THREADS, "amount", pool);
     });
     pool.isReady(STATS);
     DataFrame summary = stats.get();
