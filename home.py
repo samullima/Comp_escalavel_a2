@@ -63,19 +63,21 @@ def plot_top_10_cidades(df):
     st.pyplot(fig)
 
 def plot_transacoes_dia(df):
+    df = df.sort_values(by="time_start")
+    df["time_start"] = df["time_start"].astype(str) + ":00"
     fig, ax = plt.subplots(figsize=(12, 6))
     sns.lineplot(
         data=df,
-        x="data",
-        y="trans",
+        x="time_start",
+        y="count",
         marker="o",
         markersize=8,
         linewidth=2.5,
-        color="purple",
+        color="blue",
         ax=ax
     )
     plt.title("", fontsize=18, fontweight="bold", pad=20)
-    plt.xlabel("Data", fontsize=14, labelpad=10)
+    plt.xlabel("Hora do Dia", fontsize=14, labelpad=10)
     plt.ylabel("Número de Transações", fontsize=14, labelpad=10)
     plt.xticks(rotation=45, ha="right", fontsize=12)
     plt.yticks(fontsize=12)
@@ -129,7 +131,7 @@ def plot_anormalidades(df):
 def show_summary_table(df):
     st.dataframe(df, use_container_width=True)
     
-def plot_benchmarkingCSV(df):
+def plot_benchmarking(df):
     fig, ax = plt.subplots(figsize=(10, 6))
     
     # Linha do tempo médio
@@ -164,43 +166,6 @@ def plot_benchmarkingCSV(df):
     sns.despine()
     
     st.pyplot(fig)
-    
-def plot_benchmarkingDB(df):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    # Linha do tempo médio
-    sns.lineplot(
-        data=df,
-        x="numThreads",
-        y="meanTime",
-        marker="o",
-        markersize=8,
-        linewidth=2.5,
-        color="blue",
-        label="Tempo Médio",
-        ax=ax
-    )
-
-    # Área de intervalo Min/Max
-    ax.fill_between(
-        df["numThreads"],
-        df["minTime"],
-        df["maxTime"],
-        color="lightblue",
-        alpha=0.4,
-        label="Min/Max Intervalo"
-    )
-
-    ax.set_title("Tempo de Execução vs Número de Threads", fontsize=18, fontweight="bold", pad=20)
-    ax.set_xlabel("Número de Threads", fontsize=14, labelpad=10)
-    ax.set_ylabel("Tempo (ms)", fontsize=14, labelpad=10)
-    ax.legend(fontsize=12)
-    ax.grid(visible=True, linestyle="--", linewidth=0.7, alpha=0.7)
-    ax.tick_params(axis="both", which="major", labelsize=12)
-    sns.despine()
-    
-    st.pyplot(fig)
-
 
 # Título
 st.markdown(
@@ -220,7 +185,7 @@ if st.button("🔄 Refresh"):
 
     df_classificacao = pd.read_csv("output/classified_accounts.csv")
     df_cidades = pd.read_csv("output/top_10_cities.csv")
-    #df_transacoes = pd.read_csv("output/transacoes_dia.csv")
+    df_transacoes = pd.read_csv("output/num_transactions.csv")
     df_anormalidades = pd.read_csv("output/abnormal_transactions.csv")
     df_summary = pd.read_csv("output/summary_stats.csv")
     df_benchmarkingCSV = pd.read_csv("data/benchmarkingCSV.csv")
@@ -240,8 +205,8 @@ if st.button("🔄 Refresh"):
     st.header("Top 10 Capitais com mais Transações")
     plot_top_10_cidades(df_cidades)
 
-    st.header("Média de Transações por Dia")
-    #plot_transacoes_dia(df_transacoes)
+    st.header("Média de Transações por Hora")
+    plot_transacoes_dia(df_transacoes)
     
     st.header("Transações Anormais")
     plot_anormalidades(df_anormalidades)
@@ -250,10 +215,10 @@ if st.button("🔄 Refresh"):
     show_summary_table(df_summary)
     
     st.header("Benchmarking CSV")
-    plot_benchmarkingCSV(df_benchmarkingCSV)
+    plot_benchmarking(df_benchmarkingCSV)
     
     st.header("Benchmarking DB")
-    plot_benchmarkingCSV(df_benchmarkingDB)
+    plot_benchmarking(df_benchmarkingDB)
 
 else:
     st.info("Clique no botão acima para carregar os gráficos.")
