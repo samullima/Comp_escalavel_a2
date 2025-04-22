@@ -232,7 +232,7 @@ DataFrame count_values(const DataFrame& df, int id, int numThreads, const string
     int colIdx = df.getColumnIndex(colName);
     const vector<ElementType>& column = df.columns[colIdx];
     size_t dataSize = column.size();
-
+    numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
     vector<shared_ptr<promise<unordered_map<string, int>>>> promises(numThreads);
@@ -294,24 +294,23 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
 {
     int idxColumn = df.getColumnIndex(colName);
     vector<ElementType> timeColumn = df.getColumn(idxColumn);
-
     size_t dataSize = timeColumn.size();
+    numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
     
     vector<shared_ptr<promise<vector<string>>>> promises(numThreads);
     vector<future<vector<string>>> futures;
-
+    
     for (int t = 0; t < numThreads; ++t)
     {
         // Criando uma promise para um future
         promises[t] = make_shared<promise<vector<string>>>();
         futures.push_back(promises[t]->get_future());
         
-        size_t start = t * blockSize;
+        size_t start = min(t * blockSize, dataSize);
         size_t end = min(start + blockSize, dataSize);
         if (start >= end) break;
         
-        cout << "get hour thread " << endl;
         // Enfileira a tarefa
         pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
             vector<string> partialResult;
@@ -335,15 +334,23 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
     }
 
     pool.isReady(-id);
-
-
+    
+    
     // Junta os resultados
     vector<string> hoursColumn;
-    for (auto& f : futures)
+
+    for(int i = 0; i < numThreads; i++)
     {
-        vector<string> partial = f.get();
+        vector<string> partial = futures[i].get();
         hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
     }
+
+    // for (auto& f : futures)
+    // {
+    //     vector<string> partial = f.get();
+    //     cout << "get hour threads finished" << endl;
+    //     hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
+    // }
 
     // Pegando tipo/nome da coluna original
     string typeColumn = df.getColumnType(idxColumn);
@@ -483,8 +490,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     for (auto& p : promises) {
         futures.push_back(p.get_future());
     }
-    cout << "p sort" << endl;
-    
+
     // Lança as tarefas no pool
     for (int i = 0; i < numThreads; ++i) {
         size_t start = i * block_size;
@@ -503,6 +509,8 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
                 }
                 return false;
             });
+            lock_guard<mutex> lock(m);
+            cout << "Thread " << i << " finished sorting block from " << start << " to " << end << endl;
             sorted_blocks[i] = move(local);
             promises[i].set_value();
             cout << "t_in_sort" << endl;
@@ -512,6 +520,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     pool.isReady(-id);
 
     for (auto& f : futures) f.get();
+    cout << "sort_by_column_parallel finished" << endl;
 
     // Merge com heap
     auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {

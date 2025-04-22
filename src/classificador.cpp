@@ -272,26 +272,26 @@ DataFrame classify_accounts_parallel(DataFrame& df, const string& id, const stri
 }  
 
 // Exemplo de uso
-int main() {
-    int num_threads = 2;
-    vector<string> colNames = {"account_id", "media", "current_balance"};
-    vector<string> colTypes = {"int", "float", "float"};
+// int main() {
+//     int num_threads = 2;
+//     vector<string> colNames = {"account_id", "media", "current_balance"};
+//     vector<string> colTypes = {"int", "float", "float"};
 
-    DataFrame df(colNames, colTypes);
+//     DataFrame df(colNames, colTypes);
 
-    // Adiciona dados manualmente
-    vector<ElementType> ids = {1, 2, 3, 4, 20, 5, 15, 30};
-    vector<ElementType> medias = {6000.0f, 7000.0f, 3000.0f, 500.0f, 1000.0f, 5000.0f, 15000.0f, 700.0f};
-    vector<ElementType> saldos = {5000.0f, 15000.0f, 8000.0f, 2000.0f, 1000.0f, 2000.0f, 500.0f, 3000.0f};
+//     // Adiciona dados manualmente
+//     vector<ElementType> ids = {1, 2, 3, 4, 20, 5, 15, 30};
+//     vector<ElementType> medias = {6000.0f, 7000.0f, 3000.0f, 500.0f, 1000.0f, 5000.0f, 15000.0f, 700.0f};
+//     vector<ElementType> saldos = {5000.0f, 15000.0f, 8000.0f, 2000.0f, 1000.0f, 2000.0f, 500.0f, 3000.0f};
 
-    df.columns[0] = ids;
-    df.columns[1] = medias;
-    df.columns[2] = saldos;
-    df.numRecords = ids.size(); // todos têm o mesmo tamanho
+//     df.columns[0] = ids;
+//     df.columns[1] = medias;
+//     df.columns[2] = saldos;
+//     df.numRecords = ids.size(); // todos têm o mesmo tamanho
 
-    ThreadPool tp(4); // 4 threads
-    DataFrame resultado = classify_accounts_parallel(df, "account_id", "media", "current_balance", tp);
-    resultado.printDF();
+//     ThreadPool tp(4); // 4 threads
+//     DataFrame resultado = classify_accounts_parallel(df, "account_id", "media", "current_balance", tp);
+//     resultado.printDF();
 
-    return 0;
-}
+//     return 0;
+// }

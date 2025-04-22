@@ -147,8 +147,6 @@ int main() {
     df_7.addRecord({"50", "Hartberg"});
     df_7.addRecord({"60", "Marybury"});
 
-    cout << "teste1" << endl;
-
     // Fila de tarefas
     // auto fut1 = pool.enqueue(1, [&df, &idFilter, NUM_THREADS, cond, &pool]() { return filter_records(df, idFilter, NUM_THREADS, cond, pool); });
     // auto fut2 = pool.enqueue(2, [&df_2, &idGroupBy, NUM_THREADS, &groupCol, &targetCol, &pool]() { return groupby_mean(df_2, idGroupBy, NUM_THREADS, groupCol, targetCol, pool); });
@@ -163,8 +161,6 @@ int main() {
     // pool.isReady(3);
     //pool.isReady(4);
     pool.isReady(5);
-
-    cout << "teste3" << endl;
 
     // DataFrame filtrado = fut1.get();
     // DataFrame df_grouped = fut2.get();
