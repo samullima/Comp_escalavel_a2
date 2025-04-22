@@ -8,23 +8,31 @@
 #include <thread>
 #include <iomanip>
 #include <chrono>
-#include "../include/df.h"
-#include "../include/csv_extractor.h"
+#include "include/df.h"
+#include "include/csv_extractor.h"
 
 using namespace std;
 
-void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead, mutex& mtxFile) {
+int STORAGE_BLOCKSIZE = 30000;
+int PROCESS_BLOCKSIZE = 1000;
+
+void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRead, mutex& mtxFile, int& needLines, int blocksize) {
     /*
     Esse método lê o arquivo CSV e preenche o vetor linesRead com as linhas lidas.
     */
     
     string line;
-    int blocksize = 30000;
     while(!file.eof())
     {
         vector<string> blockRead;
-        for(int i = 0; i < blocksize && getline(file, line); i++) {
-            blockRead.push_back(line);
+        // for(int i = 0; i < blocksize && getline(file, line); i++) {
+        //     blockRead.push_back(line);
+        // }
+        while(needLines < 1 || blockRead.size() < blocksize) {
+            if(getline(file, line))
+                blockRead.push_back(line);
+            else
+                break;
         }
         mtxFile.lock();
         linesRead.insert(
@@ -32,6 +40,7 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
             std::make_move_iterator(blockRead.begin()),
             std::make_move_iterator(blockRead.end())
           );
+        needLines = -1;
         mtxFile.unlock();
     }
     
@@ -42,8 +51,8 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     cout << "Número de linhas lidas: " << linesRead.size() << endl;
 }
 
-// Método linha por linha P.S. Parece mais rápido com mais threads
-void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter) {
+// Método linha por linha
+void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter, int& needLines) {
     /*
     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
     */
@@ -80,7 +89,7 @@ void processCSVLines(const vector<string>& linesRead, DataFrame* df, int& record
 }
 
 // Método em bloco
-void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter, int blocksize) {
+void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recordsCount, bool& fileAlreadyRead, mutex& mtxFile, mutex& mtxCounter, int& needLines, int blocksize) {
     /*
     Esse método processa as linhas lidas do CSV e preenche o DataFrame.
     */
@@ -98,24 +107,34 @@ void processCSVBlocks(const vector<string>& linesRead, DataFrame* df, int& recor
             recordsCount = lastLine;
         }
         else{
+            if(needLines < 1 && !fileAlreadyRead)
+            {
+                needLines++;
+            }
             mtxCounter.unlock();
             continue;
         }
         mtxCounter.unlock();
 
-        for(int i = beginning; i < lastLine; i++) {
-            if(!fileAlreadyRead)
-                mtxFile.lock();
-            string line = linesRead[i];
-            mtxFile.unlock();
+        if(!fileAlreadyRead)
+            mtxFile.lock();
+        vector<string>::const_iterator first = linesRead.begin() + beginning;
+        vector<string>::const_iterator last = linesRead.begin() + lastLine;
+        vector<string> blockRead(first, last);
+        mtxFile.unlock();
+        vector<vector<string>> filteredBlockRead(blockRead.size());
+
+        for(int i = 0; i < blockRead.size(); i++) {
+            string line = blockRead[i];
             stringstream ss(line);
             string value;
             vector<string> record;
             while (getline(ss, value, ',')) {
                 record.push_back(value);
             }
-            df->addRecord(record);
+            filteredBlockRead[i] = record;
         }
+        df->addMultipleRecords(filteredBlockRead);
     }
 }
 
@@ -157,14 +176,16 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
     bool fileAlreadyRead = false;
     mutex mtxFile;
     mutex mtxCounter;
+    int needLines = 0; // 0 = False, 1 = True, -1 = False e recentemente lido
 
     chrono::high_resolution_clock::time_point startRead = chrono::high_resolution_clock::now();
-    threads.push_back(thread(readCSVLines, ref(file), ref(linesRead), ref(fileAlreadyRead), ref(mtxFile)));
+    threads.push_back(thread(readCSVLines, ref(file), ref(linesRead), ref(fileAlreadyRead), ref(mtxFile), ref(needLines), PROCESS_BLOCKSIZE*numThreads));
     
     chrono::high_resolution_clock::time_point startProcess = chrono::high_resolution_clock::now();
     int recordsCount = 0;
     for(int i = 1; i < numThreads; i++) {
-        threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter)));
+        // threads.push_back(thread(processCSVLines, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter), ref(needLines)));
+        threads.push_back(thread(processCSVBlocks, ref(linesRead), df, ref(recordsCount), ref(fileAlreadyRead), ref(mtxFile),ref(mtxCounter), ref(needLines), PROCESS_BLOCKSIZE));
     }
 
     threads[0].join();

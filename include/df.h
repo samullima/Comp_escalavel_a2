@@ -40,6 +40,7 @@ class DataFrame {
         // Métodos
         void addColumn(const vector<ElementType>& col, string colName, string colType);
         void addRecord(const vector<string>& record);
+        void addMultipleRecords(const vector<vector<string>>& records);
         DataFrame getRecords(const vector<int>& indexes) const;
         void printDF();
         void DFtoCSV(string csvName);
