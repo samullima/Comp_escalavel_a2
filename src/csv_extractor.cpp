@@ -47,8 +47,8 @@ void readCSVLines(ifstream& file, vector<string>& linesRead, bool& fileAlreadyRe
     fileAlreadyRead = true;
     file.close();
     // Notifica que o arquivo foi lido
-    cout << "Arquivo lido com sucesso!" << endl;
-    cout << "Número de linhas lidas: " << linesRead.size() << endl;
+    //cout << "Arquivo lido com sucesso!" << endl;
+    //cout << "Número de linhas lidas: " << linesRead.size() << endl;
 }
 
 // Método linha por linha
@@ -167,7 +167,7 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
         headers.push_back(header);
         if(colTypes.size() < headers.size()) colTypes.push_back("string"); // Supondo que todos os tipos sejam string inicialmente
     }
-    cout << "Colunas lidas: " << headers.size() << endl;
+    //cout << "Colunas lidas: " << headers.size() << endl;
     DataFrame * df = new DataFrame(headers, colTypes);
 
     // Lê os dados
@@ -196,8 +196,8 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
     chrono::high_resolution_clock::time_point endProcess = chrono::high_resolution_clock::now();
     auto durationRead = chrono::duration_cast<chrono::milliseconds>(endRead - startRead);
     auto durationProcess = chrono::duration_cast<chrono::milliseconds>(endProcess - startProcess);
-    cout << "Tempo de leitura: " << durationRead.count() << " ms" << endl;
-    cout << "Tempo de processamento: " << durationProcess.count() << " ms" << endl;
+    //cout << "Tempo de leitura: " << durationRead.count() << " ms" << endl;
+    //cout << "Tempo de processamento: " << durationProcess.count() << " ms" << endl;
     
     return df;
 }

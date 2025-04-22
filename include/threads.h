@@ -72,6 +72,11 @@ class ThreadPool {
         
         size_t size() const;
 
+        inline int getActiveThreads() const {
+            return active_threads.load();
+        }
+        
+
     private:
         struct Task {
             MoveOnlyFunction<void()> func;      // Função para executar
@@ -85,10 +90,11 @@ class ThreadPool {
         mutable mutex queue_mutex;              // Mutex de acesso às filas/vetores
         condition_variable condition;           // Sincronização da produção/consumo de tasks
         atomic<bool> stop;                      // Flag para parada do pool
+        atomic<int> active_threads;
     };
 
 // Construtor
-inline ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
+inline ThreadPool::ThreadPool(size_t numThreads) : stop(false), active_threads(0) {
     for (size_t i = 0; i < numThreads; ++i) {
         workers.emplace_back([this] {
             while (true) {
@@ -106,6 +112,7 @@ inline ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
 
                     task = move(tasks.front());
                     tasks.pop();
+                    active_threads++; // nova linha
                 }
                 try{
                     task();
@@ -113,6 +120,7 @@ inline ThreadPool::ThreadPool(size_t numThreads) : stop(false) {
                     cout<<"running task, with exception..."<<e.what()<<endl;
                     // return;
                 }
+                active_threads--; // nova linha
             }
         });
     }

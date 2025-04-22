@@ -300,7 +300,7 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
     vector<shared_ptr<promise<vector<string>>>> promises(numThreads);
     vector<future<vector<string>>> futures;
     mutex m;
-    cout << "numThreads: " << numThreads << endl;
+    //cout << "numThreads: " << numThreads << endl;
     for (int t = 0; t < numThreads; ++t)
     {
         // Criando uma promise para um future
@@ -311,7 +311,7 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
         size_t end = min(start + blockSize, dataSize);
         if (start >= end) break;
         
-        cout << "get hour thread " << t << endl;
+        //cout << "get hour thread " << t << endl;
         // Enfileira a tarefa
         pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
             vector<string> partialResult;
@@ -343,7 +343,7 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
     for(int i = 0; i < numThreads; i++)
     {
         vector<string> partial = futures[i].get();
-        cout << "get hour thread "<< i <<" finished" << endl;
+        //cout << "get hour thread "<< i <<" finished" << endl;
         hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
     }
 
@@ -484,13 +484,13 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     for (auto& p : promises) {
         futures.push_back(p.get_future());
     }
-    cout << "sort_by_column_parallel" << endl;
+    //cout << "sort_by_column_parallel" << endl;
     // Lança as tarefas no pool
     for (int i = 0; i < numThreads; ++i) {
         size_t start = min(i * block_size, n);
         size_t end = min(start + block_size, n);
 
-        cout << "sort_by_column_parallel thread " << i << endl;
+        //cout << "sort_by_column_parallel thread " << i << endl;
         mutex m;
         pool.enqueue(-id, [&, start, end, i]() {
             vector<size_t> local(indices.begin() + start, indices.begin() + end);
@@ -506,7 +506,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
                 return false;
             });
             lock_guard<mutex> lock(m);
-            cout << "Thread " << i << " finished sorting block from " << start << " to " << end << endl;
+            //cout << "Thread " << i << " finished sorting block from " << start << " to " << end << endl;
             sorted_blocks[i] = move(local);
             promises[i].set_value();
         });
@@ -515,7 +515,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     pool.isReady(-id);
 
     for (auto& f : futures) f.get();
-    cout << "sort_by_column_parallel finished" << endl;
+    //cout << "sort_by_column_parallel finished" << endl;
 
     // Merge com heap
     auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {

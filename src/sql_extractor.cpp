@@ -194,8 +194,7 @@ DataFrame* readDB(const string& filename, string tableName, int numThreads, vect
         pool.enqueue(i,
             [df, &linesRead, &recordsCount, &DBAlreadyRead, &mtxDB, &mtxCounter]() mutable {
                 processDBBlocks(linesRead, df, recordsCount, DBAlreadyRead, mtxDB, mtxCounter);
-            },
-            {0}); // depende da task 0
+            }); // depende da task 0
     }
 
     // Aguarda todas terminarem
