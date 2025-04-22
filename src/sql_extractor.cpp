@@ -1,5 +1,6 @@
 #include <thread>
 #include <mutex>
+#include <future>
 #include "../include/sqlite3.h"
 #include "../include/df.h"
 #include "../include/threads.h"
@@ -39,7 +40,11 @@ static int callback(void *data, int argc, char **argv, char **azColName)
     // Colocando os nomes das colunas no DataFrame
     if (!(*columnsDone)) {
         DataFrame* df = getDF(coolData);
-        vector<string> colNames(argc);
+        for(int i = 0; i < argc; i++) {
+            string newColName = azColName[i];
+            string oldColName = "col" + to_string(i);
+            df->changeColumnName(oldColName, newColName);
+        }
         *columnsDone = true;
     }
     
@@ -182,25 +187,72 @@ DataFrame* readDB(const string& filename, string tableName, int numThreads, vect
     int recordsCount = 0;
 
     ThreadPool pool(numThreads);
+    vector<future<void>> futures;
 
-    // Task 0: leitura do banco
-    pool.enqueue(0,
+    futures.push_back(pool.enqueue(-1,
         [df, &DBAlreadyRead, &linesRead, &mtxDB, sql, db]() mutable {
             extractFromDB(db, sql, df, DBAlreadyRead, linesRead, mtxDB);
-        });
+        })
+    );
 
-    // Tasks 1...n-1: processadores
     for (int i = 1; i < numThreads; ++i) {
-        pool.enqueue(i,
+        futures.push_back(pool.enqueue(-1,
             [df, &linesRead, &recordsCount, &DBAlreadyRead, &mtxDB, &mtxCounter]() mutable {
                 processDBBlocks(linesRead, df, recordsCount, DBAlreadyRead, mtxDB, mtxCounter);
-            },
-            {0}); // depende da task 0
+            }));
+    }
+    pool.isReady(-1);
+
+    
+    for (int i = 0; i < numThreads; ++i) {
+        futures[i].wait();
     }
 
-    // Aguarda todas terminarem
-    while (pool.size() > 0 && pool.getActiveThreads() > 0) {
-        this_thread::sleep_for(chrono::milliseconds(10));
+    return df;
+}
+
+
+DataFrame* readDB(int id, const string& filename, string tableName, int numThreads, vector<string> colTypes, ThreadPool& pool) {
+    if (numThreads < 2) numThreads = 2;
+
+    sqlite3* db;
+    int rc = sqlite3_open(filename.c_str(), &db);
+    if (rc) {
+        cerr << "Can't open database: " << sqlite3_errmsg(db) << endl;
+        return nullptr;
+    }
+
+    string sql = "SELECT * FROM " + tableName + ";";
+
+    vector<string> colNames;
+    for (int i = 0; i < colTypes.size(); ++i)
+        colNames.push_back("col" + to_string(i));
+
+    auto* df = new DataFrame(colNames, colTypes);
+    vector<vector<string>> linesRead;
+    bool DBAlreadyRead = false;
+    mutex mtxDB, mtxCounter;
+    int recordsCount = 0;
+
+    vector<future<void>> futures;
+
+    futures.push_back(pool.enqueue(-id,
+        [df, &DBAlreadyRead, &linesRead, &mtxDB, sql, db]() mutable {
+            extractFromDB(db, sql, df, DBAlreadyRead, linesRead, mtxDB);
+        })
+    );
+
+    for (int i = 1; i < numThreads; ++i) {
+        futures.push_back(pool.enqueue(-id,
+            [df, &linesRead, &recordsCount, &DBAlreadyRead, &mtxDB, &mtxCounter]() mutable {
+                processDBBlocks(linesRead, df, recordsCount, DBAlreadyRead, mtxDB, mtxCounter);
+            }));
+    }
+    pool.isReady(-id);
+
+    
+    for (int i = 0; i < numThreads; ++i) {
+        futures[i].wait();
     }
 
     return df;
