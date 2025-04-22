@@ -22,7 +22,6 @@ $ gcc -c include/sqlite3.c
 
 * `data/`: contém os dados a serem extraídos para construção dos dataframes;
 * `include/`: contém os _headers_ dos arquivos em `src/`, além do template para o thread pool e o código fonte do SQLite;
-* `dashboard/`: contém os arquivos que geram o dashboard Streamlit para visualização dos resultados dos tratadores;
 * `output/`: onde os dataframes resultantes do driver code são postos;
 * `tests/`: contém dois arquivos de testes para os extratores de CSV e de SQLite;
 * `src/`: contém as implementações dos tratadores, extratores e estrutura do dataframe, além de um arquivo que gera dados bancários sintéticos para analisarmos;
