@@ -18,8 +18,9 @@ DataFrame filter_records_by_idxes(DataFrame& df, int id, int numThreads, const v
 DataFrame filter_records(DataFrame& df, int id, int numThreads, function<bool(const vector<ElementType>&)> condition, ThreadPool& pool);
 DataFrame groupby_mean(DataFrame& df, int id, int numThreads, const string& group_col, const string& target_col, ThreadPool& pool);
 DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, int id, int numThreads, const string& key_col, ThreadPool& pool);
-DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool);
+DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, int numDays, ThreadPool& pool);
 DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool);
+DataFrame num_transac_by_hour(const DataFrame& df, int id, int numThreads, const string& hourCol, int numDays, ThreadPool& pool);
 DataFrame classify_accounts_parallel(DataFrame& df, int id, int numThreads, const string& idCol, const string& class_first, const string& class_sec, ThreadPool& tp);
 DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, const string& key_col, ThreadPool& pool, bool ascending);
 unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int numThreads, const string& colName, const vector<double>& quantiles, ThreadPool& pool);

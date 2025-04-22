@@ -228,7 +228,7 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, int id, int nu
     return result;
 }
 
-DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool) {
+DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, int numDays=0, ThreadPool& pool) {
     int colIdx = df.getColumnIndex(colName);
     const vector<ElementType>& column = df.columns[colIdx];
     size_t dataSize = column.size();
@@ -283,7 +283,8 @@ DataFrame count_values(const DataFrame& df, int id, int numThreads, const string
 
     // Adicionando registros
     for (const auto& [key, count] : global_count) {
-        result.addRecord({key, to_string(count)});
+        int finalCount = (numDays > 0) ? count / numDays : count;
+        result.addRecord({key, to_string(finalCount)});
     }
 
     return result;
@@ -333,7 +334,6 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
         });
     }
 
-    cout << "aaa" << endl;
     pool.isReady(-id);
 
 
@@ -364,6 +364,14 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
     dfHours.addColumn(colHour, nameColumn, typeColumn);
 
     return dfHours;
+}
+
+DataFrame num_transac_by_hour(const DataFrame& df, int id, int numThreads, const string& hourCol, int numDays, ThreadPool& pool)
+{
+    DataFrame hours = get_hour_by_time(df, id, numThreads, hourCol, pool);
+    DataFrame counts = count_values(hours, id, numThreads, hourCol, numDays, pool);
+    
+    return counts;
 }
 
 DataFrame classify_accounts_parallel(DataFrame& df, int id, int numThreads, const string& idCol, const string& class_first, const string& class_sec, ThreadPool& tp) {
@@ -464,18 +472,19 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     size_t n = df.getNumRecords();
     vector<size_t> indices(n);
     iota(indices.begin(), indices.end(), 0);
-
+    
     size_t block_size = (n + numThreads - 1) / numThreads;
-
+    
     vector<vector<size_t>> sorted_blocks(numThreads);
     vector<promise<void>> promises(numThreads);
     vector<future<void>> futures;
-
+    
     // Relaciona promessas e futuros
     for (auto& p : promises) {
         futures.push_back(p.get_future());
     }
-
+    cout << "p sort" << endl;
+    
     // Lança as tarefas no pool
     for (int i = 0; i < numThreads; ++i) {
         size_t start = i * block_size;
@@ -496,6 +505,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
             });
             sorted_blocks[i] = move(local);
             promises[i].set_value();
+            cout << "t_in_sort" << endl;
         });
     }
 
@@ -559,6 +569,7 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int
     unordered_map<string, ElementType> result;
 
     DataFrame sorted_df = sort_by_column_parallel(df, id, numThreads, colName, pool, true);
+    cout << "p quantile" << endl;
     const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
     int n = sorted_df.getNumRecords();
 
@@ -716,6 +727,7 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads,
 DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
 {
     unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, id, numThreads, amountCol, {0.25, 0.75}, pool);
+    cout << "preemptive" << endl;
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
@@ -766,7 +778,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
 
         promises[t] = make_shared<promise<tuple<vector<ElementType>, vector<ElementType>, vector<ElementType>>>>();
         futures.push_back(promises[t]->get_future());
-
+        
         pool.enqueue(-id, [start, end, lower, upper,
                     &colTrans, &colAmount, &colLocationTransac, &colAccountTransac, 
                     &colAccountAccount, &colLocationAccount, &accountLocationMap, p = promises[t]]() {
@@ -787,11 +799,13 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
 
                 bool isAmountSus = (amount < lower || amount > upper);
                 bool isLocationSus = (locationTransac != locationAccount);
-
                 if (isAmountSus || isLocationSus) {
                     ids.push_back(id);
+                    cout << "c1" << endl;
                     suspiciousLocation.push_back(isLocationSus);
+                    cout << "c2" << endl;
                     suspiciousAmount.push_back(isAmountSus);
+                    cout << "c3" << endl;
                 }
             }
 

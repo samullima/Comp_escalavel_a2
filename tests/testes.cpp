@@ -150,56 +150,56 @@ int main() {
     cout << "teste1" << endl;
 
     // Fila de tarefas
-    auto fut1 = pool.enqueue(1, [&df, &idFilter, NUM_THREADS, cond, &pool]() { return filter_records(df, idFilter, NUM_THREADS, cond, pool); });
-    auto fut2 = pool.enqueue(2, [&df_2, &idGroupBy, NUM_THREADS, &groupCol, &targetCol, &pool]() { return groupby_mean(df_2, idGroupBy, NUM_THREADS, groupCol, targetCol, pool); });
-    auto fut3 = pool.enqueue(3, [&df_3, &df_4, &idJoin, NUM_THREADS, &keyCol, &pool]() { return join_by_key(df_3, df_4, idJoin, NUM_THREADS, keyCol, pool); });
-    auto fut4 = pool.enqueue(4, [&df_5, &idGetHour, NUM_THREADS, &timeCol, &pool]() { return get_hour_by_time(df_5, idGetHour, NUM_THREADS, timeCol, pool); });
-    auto fut6 = pool.enqueue(5, [&df_6, &df_7, &idAbnormal, NUM_THREADS, &transacCol, &amountCol, &locationCol, &accountCol, &pool]() { return abnormal_transactions(df_6, df_7, idAbnormal, NUM_THREADS, transacCol, amountCol, locationCol, accountCol, accountCol, locationCol, pool); });
+    // auto fut1 = pool.enqueue(1, [&df, &idFilter, NUM_THREADS, cond, &pool]() { return filter_records(df, idFilter, NUM_THREADS, cond, pool); });
+    // auto fut2 = pool.enqueue(2, [&df_2, &idGroupBy, NUM_THREADS, &groupCol, &targetCol, &pool]() { return groupby_mean(df_2, idGroupBy, NUM_THREADS, groupCol, targetCol, pool); });
+    // auto fut3 = pool.enqueue(3, [&df_3, &df_4, &idJoin, NUM_THREADS, &keyCol, &pool]() { return join_by_key(df_3, df_4, idJoin, NUM_THREADS, keyCol, pool); });
+    //auto fut4 = pool.enqueue(4, [&df_5, &idGetHour, NUM_THREADS, &timeCol, &pool]() { return get_hour_by_time(df_5, idGetHour, NUM_THREADS, timeCol, pool); });
+    auto fut5 = pool.enqueue(5, [&df_6, &df_7, &idAbnormal, NUM_THREADS, &transacCol, &amountCol, &locationCol, &accountCol, &pool]() { return abnormal_transactions(df_6, df_7, idAbnormal, NUM_THREADS, transacCol, amountCol, locationCol, accountCol, accountCol, locationCol, pool); });
 
     cout << "teste2" << endl;
 
-    pool.isReady(1);
-    pool.isReady(2);
-    pool.isReady(3);
-    pool.isReady(4);
+    // pool.isReady(1);
+    // pool.isReady(2);
+    // pool.isReady(3);
+    //pool.isReady(4);
     pool.isReady(5);
 
     cout << "teste3" << endl;
 
-    DataFrame filtrado = fut1.get();
-    DataFrame df_grouped = fut2.get();
-    DataFrame df_result = fut3.get();
+    // DataFrame filtrado = fut1.get();
+    // DataFrame df_grouped = fut2.get();
+    // DataFrame df_result = fut3.get();
+    //DataFrame df_hour = fut4.get();
+    DataFrame df_abnormal = fut5.get();
     cout << "teste4" << endl;
-    DataFrame df_hour = fut4.get();
-    DataFrame df_abnormal = fut6.get();
     
 
     // Esse depende do df_hour
-    auto fut5 = pool.enqueue(6, [&df_hour, &idCount, NUM_THREADS, &timeCol, &pool]() { return count_values(df_hour, idCount, NUM_THREADS, timeCol, pool); });
-    pool.isReady(6);
-    DataFrame df_count = fut5.get();
+    // auto fut6 = pool.enqueue(6, [&df_hour, &idCount, NUM_THREADS, &timeCol, &pool]() { return count_values(df_hour, idCount, NUM_THREADS, timeCol, pool); });
+    // pool.isReady(6);
+    // DataFrame df_count = fut6.get();
 
     cout << "teste5" << endl;
 
     // Resultados
-    cout << "\nTeste para filtrar registros";
-    cout << "\nDataFrame filtrado (salario > 5000):\n";
-    filtrado.printDF();
+    // cout << "\nTeste para filtrar registros";
+    // cout << "\nDataFrame filtrado (salario > 5000):\n";
+    // filtrado.printDF();
 
-    cout << "\nTeste para o groupby:" << endl;
-    df_grouped.printDF();
+    // cout << "\nTeste para o groupby:" << endl;
+    // df_grouped.printDF();
 
-    cout << "\nTeste para join:" << endl;
-    df_result.printDF();
+    // cout << "\nTeste para join:" << endl;
+    // df_result.printDF();
 
-    cout << "\nTeste para get_hour_by_time:" << endl;
-    df_hour.printDF();
+    // cout << "\nTeste para get_hour_by_time:" << endl;
+    // df_hour.printDF();
 
-    cout << "\nTeste para count_values:" << endl;
-    df_count.printDF();
+    // cout << "\nTeste para count_values:" << endl;
+    // df_count.printDF();
 
-    cout << "\nTeste para abnormal_transactions:" << endl;
-    df_abnormal.printDF();
+    // cout << "\nTeste para abnormal_transactions:" << endl;
+    // df_abnormal.printDF();
 
     return 0;
 }
