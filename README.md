@@ -53,7 +53,7 @@ $ streamlit run home.py
 Na pasta `tests/`, há dois arquivos que reportam algumas métricas de performance dos extratores SQLite e CSV. Para rodar os testes SQLite, execute 
 
 ```bash
-$ g++ -std=c++17 -Iinclude tests/db_test.cpp src/sql_extractor.cpp src/df.cpp src.tratadores.cpp -o sqlite_test.exe sqlite3.o
+$ g++ -std=c++17 -Iinclude tests/db_test.cpp src/sql_extractor.cpp src/df.cpp src/tratadores.cpp -o sqlite_test.exe sqlite3.o
 ```
 
 seguido de 
@@ -65,7 +65,7 @@ $ ./sqlite_test.exe
 Da mesma forma, para rodar os testes CSV, execute
 
 ```bash
-$ g++ -std=c++17 -Iinclude tests/csv_test.cpp src/csv_extractor.cpp src/df.cpp src.tratadores.cpp -o csv_test.exe
+$ g++ -std=c++17 -Iinclude tests/csv_test.cpp src/csv_extractor.cpp src/df.cpp src/tratadores.cpp -o csv_test.exe
 ```
 
 seguido de 
