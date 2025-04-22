@@ -293,24 +293,25 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
 {
     int idxColumn = df.getColumnIndex(colName);
     vector<ElementType> timeColumn = df.getColumn(idxColumn);
-
     size_t dataSize = timeColumn.size();
+    numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
     
     vector<shared_ptr<promise<vector<string>>>> promises(numThreads);
     vector<future<vector<string>>> futures;
-
+    mutex m;
+    cout << "numThreads: " << numThreads << endl;
     for (int t = 0; t < numThreads; ++t)
     {
         // Criando uma promise para um future
         promises[t] = make_shared<promise<vector<string>>>();
         futures.push_back(promises[t]->get_future());
         
-        size_t start = t * blockSize;
+        size_t start = min(t * blockSize, dataSize);
         size_t end = min(start + blockSize, dataSize);
         if (start >= end) break;
         
-        cout << "get hour thread " << endl;
+        cout << "get hour thread " << t << endl;
         // Enfileira a tarefa
         pool.enqueue(-id, [&, start, end, p = promises[t]]() mutable {
             vector<string> partialResult;
@@ -333,17 +334,25 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
         });
     }
 
-    cout << "aaa" << endl;
     pool.isReady(-id);
-
-
+    
+    
     // Junta os resultados
     vector<string> hoursColumn;
-    for (auto& f : futures)
+
+    for(int i = 0; i < numThreads; i++)
     {
-        vector<string> partial = f.get();
+        vector<string> partial = futures[i].get();
+        cout << "get hour thread "<< i <<" finished" << endl;
         hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
     }
+
+    // for (auto& f : futures)
+    // {
+    //     vector<string> partial = f.get();
+    //     cout << "get hour threads finished" << endl;
+    //     hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
+    // }
 
     // Pegando tipo/nome da coluna original
     string typeColumn = df.getColumnType(idxColumn);
