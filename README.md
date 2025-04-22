@@ -12,21 +12,13 @@ Para executar o projeto, é necessário ter instalado Python, C e C++. Além dis
 pip install -r requirements.txt
 ```
 
-Para baixar o _sqlite3_, por outro lado, execute
-
-```bash
-gcc -c include/sqlite3.c
-```
-
-Isso vai criar um arquivo `sqlite3.o` na pasta raiz, que deveremos passar como argumento adicional no terminal quando usarmos o extrator SQLite.
-
 ## Estrutura 
 
 * `data/`: contém os dados a serem extraídos para construção dos dataframes;
-* `include/`: contém os _headers_ dos arquivos em `src/`, além do template pata o thread pool e arquivos com código _sqlite_ para compilação mais fácil (no caso de um usuário Windows) de arquivos que lidam com dados dessa estrutura;
+* `include/`: contém os _headers_ dos arquivos em `src/`, além do template para o thread pool;
 * `dashboard/`: contém os arquivos que geram o dashboard Streamlit para visualização dos resultados dos tratadores;
 * `src/`: contém as implementações dos tratadores, extratores e estrutura do dataframe, além de um arquivo que gera dados bancários sintéticos para analisarmos;
-* `main.cpp`: driver code do projeto, contém algumas demos para que se possa entender quais são suas funcionalidades.
+* `main.cpp`: driver code do projeto, mostra o funcionamento de alguns tratadores.
 
 ## Execução
 
