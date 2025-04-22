@@ -40,6 +40,22 @@ DataFrame::DataFrame(const vector<string>& colNamesRef, const vector<string>& co
     rowMutexes.resize(numRecords);
 }
 
+DataFrame::DataFrame(const DataFrame& other) {
+    lock_guard<mutex> lock(other.mutexDF); 
+
+    // Copiando os dados
+    columns = other.columns;
+    numRecords = other.numRecords;
+    numCols = other.numCols;
+    colNames = other.colNames;
+    idxColumns = other.idxColumns;
+    colTypes = other.colTypes;
+
+    // Novos Mutex
+    columnMutexes = deque<mutex>(other.columnMutexes.size());
+    rowMutexes = deque<mutex>(other.rowMutexes.size());
+}
+
 
 // Destrutor
 DataFrame::~DataFrame()

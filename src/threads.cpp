@@ -97,66 +97,66 @@ void threadAddColumn(DataFrame& df, const string& colName, const string& colType
     logThread(label, "END", start);
 }
 
-int main() {
-    // Marca o início do tempo total de execução
-    auto total_start = steady_clock::now();
+// int main() {
+//     // Marca o início do tempo total de execução
+//     auto total_start = steady_clock::now();
     
-    // Exibe número de núcleos disponíveis
-    cout << "Número de threads concorrentes disponíveis (número de núcleos): " 
-         << thread::hardware_concurrency() << endl;
+//     // Exibe número de núcleos disponíveis
+//     cout << "Número de threads concorrentes disponíveis (número de núcleos): " 
+//          << thread::hardware_concurrency() << endl;
     
-    ThreadPool pool(10);
-    cout << "\nNúmero de threads do thread pool: " << pool.size() << "\n" << endl;
+//     ThreadPool pool(10);
+//     cout << "\nNúmero de threads do thread pool: " << pool.size() << "\n" << endl;
 
-    // Cria o DataFrame com colunas iniciais
-    vector<string> colNames = { "id", "value", "flag", "text" };
-    vector<string> colTypes = { "int", "float", "bool", "string" };
-    DataFrame df(colNames, colTypes);
+//     // Cria o DataFrame com colunas iniciais
+//     vector<string> colNames = { "id", "value", "flag", "text" };
+//     vector<string> colTypes = { "int", "float", "bool", "string" };
+//     DataFrame df(colNames, colTypes);
 
-    const int numTasks = 4;         // Número de tarefas para adicionar registros
-    const int recordsPerTask = 10;    // Número de registros por tarefa
-    vector<future<void>> futures;
+//     const int numTasks = 4;         // Número de tarefas para adicionar registros
+//     const int recordsPerTask = 10;    // Número de registros por tarefa
+//     vector<future<void>> futures;
 
-    // Enfileira tarefas para adicionar registros e armazena os futuros para sincronização
-    for (int i = 0; i < numTasks; ++i) {
-        promise<void> p;
-        futures.push_back(p.get_future());
-        pool.enqueue(i, [&, i, p = move(p)]() mutable {
-            threadAddRecords(df, i, recordsPerTask);
-            p.set_value();
-        });
-    }    
+//     // Enfileira tarefas para adicionar registros e armazena os futuros para sincronização
+//     for (int i = 0; i < numTasks; ++i) {
+//         promise<void> p;
+//         futures.push_back(p.get_future());
+//         pool.enqueue(i, [&, i, p = move(p)]() mutable {
+//             threadAddRecords(df, i, recordsPerTask);
+//             p.set_value();
+//         });
+//     }    
     
-    // Aguarda todas as tarefas de adição de registros finalizarem
-    for (int i = 0; i < numTasks; ++i)
-        futures[i].wait();
+//     // Aguarda todas as tarefas de adição de registros finalizarem
+//     for (int i = 0; i < numTasks; ++i)
+//         futures[i].wait();
 
-    // Prepara os dados para a nova coluna; o tamanho deve ser igual ao número total de registros
-    vector<ElementType> newCol;
-    for (int i = 0; i < numTasks * recordsPerTask; ++i)
-        newCol.push_back(i % 2 == 0 ? "extraA" : "extraB");
+//     // Prepara os dados para a nova coluna; o tamanho deve ser igual ao número total de registros
+//     vector<ElementType> newCol;
+//     for (int i = 0; i < numTasks * recordsPerTask; ++i)
+//         newCol.push_back(i % 2 == 0 ? "extraA" : "extraB");
 
-    futures.clear();
-    {
-        promise<void> p;
-        futures.push_back(p.get_future());
-        pool.enqueue(100, [&df, newCol, p = move(p)]() mutable {
-            threadAddColumn(df, "extra_col", "string", newCol);
-            p.set_value();
-        });
-    }
+//     futures.clear();
+//     {
+//         promise<void> p;
+//         futures.push_back(p.get_future());
+//         pool.enqueue(100, [&df, newCol, p = move(p)]() mutable {
+//             threadAddColumn(df, "extra_col", "string", newCol);
+//             p.set_value();
+//         });
+//     }
         
-    // Aguarda a tarefa de adicionar a nova coluna finalizar
-    for (auto& f : futures)
-        f.wait();
+//     // Aguarda a tarefa de adicionar a nova coluna finalizar
+//     for (auto& f : futures)
+//         f.wait();
 
-    // Calcula o tempo total de execução
-    auto total_end = steady_clock::now();
-    auto total_duration = duration_cast<milliseconds>(total_end - total_start).count();
+//     // Calcula o tempo total de execução
+//     auto total_end = steady_clock::now();
+//     auto total_duration = duration_cast<milliseconds>(total_end - total_start).count();
 
-    cout << "\n[RESULTADO FINAL]\n";
-    df.printDF();
-    cout << "\nTempo total de execução: " << total_duration << " ms\n";
+//     cout << "\n[RESULTADO FINAL]\n";
+//     df.printDF();
+//     cout << "\nTempo total de execução: " << total_duration << " ms\n";
 
-    return 0;
-}
+//     return 0;
+// }
