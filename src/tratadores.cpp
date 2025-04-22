@@ -25,10 +25,10 @@ using namespace std;
 using ElementType = variant<int, float, bool, string>; 
 
 // Função auxiliar para filtrar um bloco de registros
-vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idx_min, int idx_max) {
+vector<int> filter_block_records(DataFrame& df, function<bool(const vector<ElementType>&)> condition, int idxMin, int idxMax) {
     vector<int> idxesList;
     
-    for (int i = idx_min; i < idx_max; i++) {
+    for (int i = idxMin; i < idxMax; i++) {
         if (condition(df.getRecord(i))) {
             idxesList.push_back(i);
         }
