@@ -124,12 +124,7 @@ int main() {
 
     cout << "Juntando DataFrame agrupado com accounts..." << endl;
     DataFrame dfJoin = join.get();
-    vector<string> joinNames = dfJoin.getColumnNames();
-    for(const auto& name : joinNames) {
-        cout << name << " ";
-    }
-    cout << endl;
-    cout << dfJoin.getNumRecords() << " registros no dataframe resultante." << endl;
+
     auto classifications = pool.enqueue(CLASSIFICATION, [&]() {
         return classify_accounts_parallel(dfJoin, 7, NUM_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", pool);
     });
@@ -154,17 +149,17 @@ int main() {
     });
     pool.isReady(TOP_CITIES);
     DataFrame top_cities = top_10_cities.get();
-    cout << top_cities.getNumRecords() << " cidades mais ativas classificadas com sucesso." << endl;
+    cout << top_cities.getNumRecords() << " capitais mais ativas classificadas com sucesso." << endl;
     top_cities.DFtoCSV("output/top_10_cities");
 
-    cout << "\n Você quer ver o dataframe com as 10 cidades mais ativas? (y/n)" << endl;
+    cout << "\n Você quer ver o dataframe com as 10 capitais mais ativas? (y/n)" << endl;
     cin >> answer;
     if (answer == "y" || answer == "Y") {
         top_cities.printDF();
     }
 
     cout << "\n\n--------------------------" << endl;
-    cout << "[ CALCULANDO ESTATÍSTICAS DESCRITIVAS ]" << endl;
+    cout << "[ CALCULANDO ESTATÍSTICAS DESCRITIVAS DA COLUNA AMOUNT ]" << endl;
     auto stats = pool.enqueue(STATS, [&]() {
         return summaryStats(*transactions, 9, NUM_THREADS, "amount", pool);
     });
@@ -173,7 +168,7 @@ int main() {
     cout << summary.getNumRecords() << " estatísticas descritivas calculadas com sucesso." << endl;
     summary.DFtoCSV("output/summary_stats");
 
-    cout << "\n Você quer ver o dataframe com as estatísticas descritivas das transações? (y/n)" << endl;
+    cout << "\n Você quer ver o dataframe com as estatísticas descritivas dos valores das transações? (y/n)" << endl;
     cin >> answer;
     if (answer == "y" || answer == "Y") {
         summary.printDF();
