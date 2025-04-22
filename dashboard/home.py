@@ -137,7 +137,7 @@ if st.button("🔄 Refresh"):
     - **A**: se a média de transações for superior a 500.
     - **B**: se a média de transações estiver entre 200 e 500 **e** o saldo for maior que 10.000.
     - **C**: se a média de transações estiver entre 200 e 500 **e** o saldo for menor ou igual a 10.000.
-    - **C**: se a média de transações for inferior a 200.
+    - **D**: se a média de transações for inferior a 200.
     """)
     plot_classificacao_contas(df_classificacao)
 
