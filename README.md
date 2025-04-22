@@ -9,13 +9,13 @@ O presente trabalho implementa um micro-framework de extração, carregamente e 
 Para executar o projeto, é necessário ter instalado Python, C e C++. Além disso, é necessário instalar as bibliotecas listadas no arquivo `requirements.txt`. Para isso, execute o seguinte comando:
 
 ```bash
-pip install -r requirements.txt
+$ pip install -r requirements.txt
 ```
 
 Para conseguir rodar o SQLite, execute
 
 ```bash
-gcc -c include/sqlite3.c
+$ gcc -c include/sqlite3.c
 ```
 
 ## Estrutura 
@@ -45,7 +45,7 @@ $ ./main.exe
 Para visualizar o dashboard, execute
 
 ```bash
-streamlit run home.py 
+$ streamlit run home.py 
 ```
 
 ### Adicional: demos dos extratores
