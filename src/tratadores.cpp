@@ -575,7 +575,7 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int
     DataFrame sorted_df = sort_by_column_parallel(df, id, numThreads, colName, pool, true);
     const auto& sorted_col = sorted_df.getColumn(sorted_df.getColumnIndex(colName));
     int n = sorted_df.getNumRecords();
-
+    
     // função para calcular os quantis
     auto get_quantile_value = [&](double quantile) -> ElementType {
         if (n == 0) return ElementType{};
@@ -733,37 +733,38 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
-
+    
     float lower = (q1 - 0.45f * iqr < 0) ? 1.0f : (q1 - 0.45f * iqr);
     float upper = q3 + 1.25f * iqr;
-
+    
     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
-
+    
     size_t dataSize = dfTransac.getNumRecords();
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
-
+    
     // cout << "Data Size: " << dataSize << endl;
     // cout << "Num Threads: " << numThreads << endl;
     // cout << "Block Size: " << blockSize << endl;
-
+    
     int idxTrans = dfTransac.getColumnIndex(transactionIDCol);
     int idxAmount = dfTransac.getColumnIndex(amountCol);
     int idxLocation = dfTransac.getColumnIndex(locationCol);
     int idxAccountTransac = dfTransac.getColumnIndex(accountColTransac);
     int idxAccountAccount = dfAccount.getColumnIndex(accountColAccount);
     int idxLocationAccount = dfAccount.getColumnIndex(locationColAccount);
-
+    
     const vector<ElementType>& colTrans = dfTransac.getColumn(idxTrans);
     const vector<ElementType>& colAmount = dfTransac.getColumn(idxAmount);
     const vector<ElementType>& colLocationTransac = dfTransac.getColumn(idxLocation);
     const vector<ElementType>& colAccountTransac = dfTransac.getColumn(idxAccountTransac);
     const vector<ElementType>& colAccountAccount = dfAccount.getColumn(idxAccountAccount);
     const vector<ElementType>& colLocationAccount = dfAccount.getColumn(idxLocationAccount);
-
+    
     // Mapeando todos os ids de conta para as suas localizações
     unordered_map<int, string> accountLocationMap;
     for (int i = 0; i < dfAccount.getNumRecords(); i++) 
     {
+
         int id = get<int>(colAccountAccount[i]);
         string loc = get<string>(colLocationAccount[i]);
         accountLocationMap[id] = loc;
