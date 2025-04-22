@@ -27,6 +27,6 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int
 double calculateMeanParallel(const DataFrame& df, int id, int numThreads, const string& target_col, ThreadPool& pool);
 DataFrame summaryStats(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool);
 DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool);
-DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool);
+DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationColTransac, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool);
 
 #endif

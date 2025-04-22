@@ -44,6 +44,7 @@ DataFrame filter_records_by_idxes(DataFrame& df, const vector<int>& idxes) {
 
 
 DataFrame filter_records(DataFrame& df, int id, int numThreads, function<bool(const vector<ElementType>&)> condition, ThreadPool& pool) {
+    numThreads = min(numThreads, static_cast<int>(df.getNumRecords()));
     int block_size = (df.getNumRecords() + numThreads - 1) / numThreads;
 
     vector<shared_ptr<promise<vector<int>>>> promises(numThreads);
@@ -85,6 +86,7 @@ DataFrame groupby_mean(DataFrame& df, int id, int numThreads, const string& grou
     const auto& target_vec = df.columns[target_idx];
 
     int total_records = df.getNumRecords();
+    numThreads = min(numThreads, static_cast<int>(total_records));
     int block_size = (total_records + numThreads - 1) / numThreads;
 
     vector<shared_ptr<promise<unordered_map<string, pair<float, int>>>>> promises(numThreads);
@@ -173,6 +175,7 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, int id, int nu
     DataFrame result(result_col_names, result_col_types);
 
     size_t numRecords = df1.getNumRecords();
+    numThreads = min(numThreads, static_cast<int>(numRecords));
     size_t block_size = (numRecords + numThreads - 1) / numThreads;
 
     vector<shared_ptr<promise<vector<vector<string>>>>> promises(numThreads);
@@ -228,7 +231,7 @@ DataFrame join_by_key(const DataFrame& df1, const DataFrame& df2, int id, int nu
     return result;
 }
 
-DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, int numDays=0, ThreadPool& pool) {
+DataFrame count_values(const DataFrame& df, int id, int numThreads, const string& colName, int numDays, ThreadPool& pool) {
     int colIdx = df.getColumnIndex(colName);
     const vector<ElementType>& column = df.columns[colIdx];
     size_t dataSize = column.size();
@@ -393,6 +396,7 @@ DataFrame classify_accounts_parallel(DataFrame& df, int id, int numThreads, cons
     auto saldo_col = df.getColumn(saldo_idx);
 
     int numRecords = df.getNumRecords();
+    numThreads = min(numThreads, static_cast<int>(numRecords));
     int block_size = (numRecords + numThreads - 1) / numThreads;
 
     // Promises comunicação de threads
@@ -480,6 +484,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
     vector<size_t> indices(n);
     iota(indices.begin(), indices.end(), 0);
     
+    numThreads = min(numThreads, static_cast<int>(n));
     size_t block_size = (n + numThreads - 1) / numThreads;
     
     vector<vector<size_t>> sorted_blocks(numThreads);
@@ -493,7 +498,7 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
 
     // Lança as tarefas no pool
     for (int i = 0; i < numThreads; ++i) {
-        size_t start = i * block_size;
+        size_t start = min(i * block_size, n);
         size_t end = min(start + block_size, n);
 
         pool.enqueue(-id, [&, start, end, i]() {
@@ -509,7 +514,6 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
                 }
                 return false;
             });
-            lock_guard<mutex> lock(m);
             cout << "Thread " << i << " finished sorting block from " << start << " to " << end << endl;
             sorted_blocks[i] = move(local);
             promises[i].set_value();
@@ -625,6 +629,7 @@ double calculateMeanParallel(const DataFrame& df, int id, int numThreads, const 
     const auto& target_vec = df.columns[target_idx];
 
     int total_records = df.getNumRecords();
+    numThreads = min(numThreads, static_cast<int>(total_records));
     int block_size = (total_records + numThreads - 1) / numThreads;
 
     // Cria promessas e futuros
@@ -710,7 +715,8 @@ DataFrame summaryStats(const DataFrame& df, int id, int numThreads, const string
 
 DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads, const string& colName, ThreadPool& pool) {
     // Conta o número de transações por cidade
-    DataFrame contagem = count_values(df, id, numThreads, colName, pool);
+    int numDays = 0;
+    DataFrame contagem = count_values(df, id, numThreads, colName, numDays, pool);
 
     // Ordena de forma decrescente pelo número de transações
     DataFrame ordenado = sort_by_column_parallel(contagem, id, numThreads, contagem.getColumnName(1), pool, false);
@@ -733,7 +739,7 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads,
     return top_10;
 }
 
-DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationCol, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
+DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationColTransac, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
 {
     unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, id, numThreads, amountCol, {0.25, 0.75}, pool);
     cout << "preemptive" << endl;
@@ -747,6 +753,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
 
     size_t dataSize = dfTransac.getNumRecords();
+    numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
     // cout << "Data Size: " << dataSize << endl;
@@ -755,7 +762,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
 
     int idxTrans = dfTransac.getColumnIndex(transactionIDCol);
     int idxAmount = dfTransac.getColumnIndex(amountCol);
-    int idxLocation = dfTransac.getColumnIndex(locationCol);
+    int idxLocation = dfTransac.getColumnIndex(locationColTransac);
     int idxAccountTransac = dfTransac.getColumnIndex(accountColTransac);
     int idxAccountAccount = dfAccount.getColumnIndex(accountColAccount);
     int idxLocationAccount = dfAccount.getColumnIndex(locationColAccount);
