@@ -3,7 +3,7 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Configurações gerais do seaborn
+# Configurações gerais
 sns.set_style("whitegrid")
 sns.set_palette("pastel")
 
@@ -83,6 +83,28 @@ def plot_transacoes_dia(df):
     sns.despine()
     st.pyplot(fig)
 
+def plot_anormalidades(df):
+    df_melted = df.melt(id_vars="account_id", value_vars=["flag_1", "flag_2"])
+    df_melted = df_melted[df_melted["value"] == 1]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.countplot(data=df_melted, x="variable", edgecolor="black", linewidth=1.2, ax=ax)
+
+    ax.set_title("Quantidade de Contas com Anormalidade", fontsize=16, fontweight="bold", pad=20)
+    ax.set_xlabel("Tipo de Anormalidade", fontsize=14, labelpad=10)
+    ax.set_ylabel("Quantidade", fontsize=14, labelpad=10)
+    ax.tick_params(axis="both", labelsize=12)
+    sns.despine()
+
+    for p in ax.patches:
+        ax.annotate(f"{int(p.get_height())}", 
+                    (p.get_x() + p.get_width() / 2., p.get_height()), 
+                    ha="center", va="center", fontsize=12, color="black", 
+                    xytext=(0, 8), textcoords="offset points")
+
+    st.pyplot(fig)
+
+
 def show_summary_table(df):
     st.dataframe(df, use_container_width=True)
 
@@ -105,6 +127,7 @@ if st.button("🔄 Refresh"):
     df_classificacao = pd.read_csv("classificacao_contas.csv")
     df_cidades = pd.read_csv("top_10_cidades.csv")
     df_transacoes = pd.read_csv("transacoes_dia.csv")
+    df_anormalidades = pd.read_csv("anormalidades.csv")
     df_summary = pd.read_csv("summary_states.csv")
 
     # Plots
@@ -123,6 +146,9 @@ if st.button("🔄 Refresh"):
 
     st.header("Média de Transações por Dia")
     plot_transacoes_dia(df_transacoes)
+    
+    st.header("Anormaliades")
+    plot_anormalidades(df_anormalidades)
 
     st.header("Summary")
     show_summary_table(df_summary)

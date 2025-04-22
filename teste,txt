@@ -1,0 +1,20 @@
+Tratador(df, id_tratador, num_threads, dependencias):
+    
+    vector<future<vector<string>>> futures;
+
+    Para t de 1 até num_threads:
+        futures.push_back(promise->get_future());
+        pool.enqueue(-id_tratador, mini_funcao_do_intervalo) // Sem dependências
+        promise->set_value(move(partialResult))
+        
+    Para cada futuro:
+        // Junto os resultados
+
+    // Depois de juntar os fututos marca o id -id_tratador como quem que não freia outra task 
+    // No nosso caso não vai freiar o Tratador    
+    pool.isready(-id_tratador) 
+
+    // Só executa por natureza se isready(-id_tratador) é True
+    pool.enqueue(id_tratador, resto_da_funcao, dependencias)
+
+    Ai sí retorna o último resultado 
