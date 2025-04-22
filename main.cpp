@@ -31,7 +31,9 @@ enum PoolID {
     JOIN = 6,
     CLASSIFICATION = 7,
     TOP_CITIES = 8,
-    STATS = 9
+    STATS = 9, 
+    NUM_DAYS = 10,
+    MEAN_NUM_TRANSACTIONS = 11
 };
 
 int main() {
@@ -172,6 +174,30 @@ int main() {
     cin >> answer;
     if (answer == "y" || answer == "Y") {
         summary.printDF();
+    }
+
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ CALCULANDO A MÉDIA DE TRANSAÇÕES POR HORA ]" << endl;
+    
+    auto countDays = pool.enqueue(NUM_DAYS, [&](){
+        return count_values(*transactions, 10, NUM_THREADS, "date", 0, pool);
+    });
+    pool.isReady(NUM_DAYS);
+    DataFrame dfNumDays = countDays.get();
+    int numDays = dfNumDays.getNumRecords();
+
+    auto numTransac = pool.enqueue(MEAN_NUM_TRANSACTIONS, [&]{
+        return num_transac_by_hour(*transactions, 10, NUM_THREADS, "time_start", numDays, pool);
+    });
+    pool.isReady(MEAN_NUM_TRANSACTIONS);
+    DataFrame dfNumTransac = numTransac.get();
+    cout << dfNumTransac.getNumRecords() << " transações para cada hora obtidas." << endl;
+    dfNumTransac.DFtoCSV("output/num_transactions");
+
+    cout << "\n Você quer ver o dataframe com a média de transações por hora? (y/n)" << endl;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        dfNumTransac.printDF();
     }
 
     return 0;

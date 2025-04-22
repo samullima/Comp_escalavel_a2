@@ -100,7 +100,7 @@ def gerar_transacoes(df_contas, n_transactions):
     for i in range(n_transactions):
         account_id = random.randint(0, n_accounts) 
         recipient_id = random.randint(0, n_accounts)
-        amount = round(random.uniform(10.0, 700.0), 2)
+        amount = round(random.uniform(10.0, 900.0), 2)
         tipo = random.choice(tipos_transacoes)
 
         time_start = lista_time_starts[i]
