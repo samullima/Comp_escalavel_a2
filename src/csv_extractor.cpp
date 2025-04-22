@@ -8,8 +8,10 @@
 #include <thread>
 #include <iomanip>
 #include <chrono>
+#include <future>
 #include "../include/df.h"
 #include "../include/csv_extractor.h"
+#include "../include/threads.h"
 
 using namespace std;
 
@@ -198,6 +200,77 @@ DataFrame* readCSV(const string& filename, int numThreads, vector<string> colTyp
     auto durationProcess = chrono::duration_cast<chrono::milliseconds>(endProcess - startProcess);
     //cout << "Tempo de leitura: " << durationRead.count() << " ms" << endl;
     //cout << "Tempo de processamento: " << durationProcess.count() << " ms" << endl;
+    
+    return df;
+}
+
+
+DataFrame* readCSV(int id, const string& filename, int numThreads, vector<string> colTypes, ThreadPool& pool) {
+    /*
+    Esse método lê um arquivo CSV e preenche o DataFrame com os dados.
+    O arquivo CSV deve ter o seguinte formato:
+    ID, Nome, Salario
+    1, "João", 3000.50
+    2, "Maria", 4000.75
+    3, "José", 2500.00
+    */
+    if(numThreads < 2) numThreads = 2;
+    ifstream file(filename);
+    if(!file.is_open()) {
+        cerr << "Erro ao abrir o arquivo: " << filename << endl;
+        throw runtime_error("Erro ao abrir o arquivo");
+    }
+
+    vector<string> headers;
+    // vector<string> colTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
+    
+    // Lê o cabeçalho
+    string headerLine;
+    getline(file, headerLine);
+    stringstream ss(headerLine);
+    string header;
+    while (getline(ss, header, ',')) {
+        headers.push_back(header);
+        if(colTypes.size() < headers.size()) colTypes.push_back("string"); // Supondo que todos os tipos sejam string inicialmente
+    }
+    // cout << "Colunas lidas: " << headers.size() << endl;
+    DataFrame * df = new DataFrame(headers, colTypes);
+    vector<future<void>> futures;
+
+    // Lê os dados
+    vector<string> linesRead;
+    vector<thread> threads;
+    bool fileAlreadyRead = false;
+    mutex mtxFile;
+    mutex mtxCounter;
+    int needLines = 0; // 0 = False, 1 = True, -1 = False e recentemente lido
+    int readblocksize = PROCESS_BLOCKSIZE*numThreads;
+    chrono::high_resolution_clock::time_point startRead = chrono::high_resolution_clock::now();
+    futures.push_back(pool.enqueue(-id,
+        [&file, &linesRead, &fileAlreadyRead, &mtxFile, &needLines, readblocksize]() mutable {
+            readCSVLines(file, linesRead, fileAlreadyRead, mtxFile, needLines, readblocksize);
+        })
+    );
+
+    int recordsCount = 0;
+    chrono::high_resolution_clock::time_point startProcess = chrono::high_resolution_clock::now();
+    for(int i = 1; i < numThreads; i++) {
+        futures.push_back(pool.enqueue(-id,
+            [&linesRead, df, &recordsCount, &fileAlreadyRead, &mtxFile, &mtxCounter, &needLines]() mutable {
+                processCSVBlocks(linesRead, df, recordsCount, fileAlreadyRead, mtxFile, mtxCounter, needLines, PROCESS_BLOCKSIZE);
+            })
+        );
+    }
+    pool.isReady(-id);
+
+    futures[0].wait();
+    chrono::high_resolution_clock::time_point endRead = chrono::high_resolution_clock::now();
+    for(int i = 1; i < numThreads; i++) {
+        futures[i].wait();
+    }
+    chrono::high_resolution_clock::time_point endProcess = chrono::high_resolution_clock::now();
+    auto durationRead = chrono::duration_cast<chrono::milliseconds>(endRead - startRead);
+    auto durationProcess = chrono::duration_cast<chrono::milliseconds>(endProcess - startProcess);
     
     return df;
 }
