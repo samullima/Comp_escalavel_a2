@@ -42,6 +42,12 @@ E em seguida
 $ ./main.exe
 ```
 
+Para visualizar o dashboard, execute
+
+```bash
+streamlit run home.py 
+```
+
 ### Adicional: demos dos extratores
 
 Na pasta `tests/`, há dois arquivos que reportam algumas métricas de performance dos extratores SQLite e CSV. Para rodar os testes SQLite, execute 
@@ -54,12 +60,6 @@ seguido de
 
 ```bash
 $ ./sqlite_test.exe
-```
-
-Para visualizar o dashboard, execute
-
-```bash
-streamlit run home.py 
 ```
 
 Da mesma forma, para rodar os testes CSV, execute
