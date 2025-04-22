@@ -232,7 +232,7 @@ DataFrame count_values(const DataFrame& df, int id, int numThreads, const string
     int colIdx = df.getColumnIndex(colName);
     const vector<ElementType>& column = df.columns[colIdx];
     size_t dataSize = column.size();
-
+    numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
 
     vector<shared_ptr<promise<unordered_map<string, int>>>> promises(numThreads);
