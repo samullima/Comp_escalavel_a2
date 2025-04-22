@@ -79,9 +79,9 @@ int main() {
     
     cout << "\n--------------------------" << endl;
     cout << "Quantidade de registros por dataframe:\n" << endl;
-    cout << "Dataframe de transações: " << transactions->getNumRecords() << " (" << transactionsDuration.count() << "ms)" << endl;
+    cout << "Dataframe de transações: " << transactions->getNumRecords() << " (" << transactionsDuration.count() << " ms)" << endl;
     cout << "Dataframe de contas: " << accounts->getNumRecords() << " (" << accountsDuration.count() << " ms)" << endl;
-    cout << "Dataframe de clientes: " << customers->getNumRecords() << " (" << customersDuration.count() << "ms)" << endl;
+    cout << "Dataframe de clientes: " << customers->getNumRecords() << " (" << customersDuration.count() << " ms)" << endl;
 
     cout << "\n\n--------------------------" << endl;
     cout << "[ IDENTIFICANDO TRANSAÇÕES ANÔMALAS ]" << endl;
@@ -93,7 +93,8 @@ int main() {
 
     cout << "Identificando transações anômalas..." << endl;
     DataFrame abnormal = abnormals.get();
-    cout << abnormal.getNumRecords() << "transações anômalas" << endl;
+    cout << abnormal.getNumRecords() << " transações anômalas" << endl;
+    abnormal.DFtoCSV("output/abnormal_transactions");
 
     cout << "\n Você quer ver o dataframe com a classificação das transações anômalas? (y/n)" << endl;
     cout << "(Aviso: esse dataframe pode ser muito grande)" << endl;
@@ -106,13 +107,14 @@ int main() {
     cout << "\n\n--------------------------" << endl;
     cout << "[ CLASSIFICANDO CLIENTES ]" << endl;
     auto classifications = pool.enqueue(CLASSIFICATION, [&]() {
-        return classify_accounts_parallel(*customers, 5, NUM_THREADS, "customer_id", "current_balance", "account_type", pool);
+        return classify_accounts_parallel(*accounts, 5, NUM_THREADS, "customer_id", "current_balance", "account_type", pool);
     });
     pool.isReady(CLASSIFICATION);
 
     cout << "Classificando clientes..." << endl;
     DataFrame classified = classifications.get();
-    cout << classified.getNumRecords() << "clientes classificados com sucesso." << endl; 
+    cout << classified.getNumRecords() << " clientes classificados com sucesso." << endl; 
+    classified.DFtoCSV("output/classified_accounts");
 
     cout << "\n Você quer ver o dataframe com a classificação dos clientes? (y/n)" << endl;
     cout << "(Aviso: esse dataframe pode ser muito grande)" << endl;
@@ -128,7 +130,9 @@ int main() {
     });
     pool.isReady(TOP_CITIES);
     DataFrame top_cities = top_10_cities.get();
-    cout << top_cities.getNumRecords() << "cidades mais ativas classificadas com sucesso." << endl;
+    cout << top_cities.getNumRecords() << " cidades mais ativas classificadas com sucesso." << endl;
+    top_cities.DFtoCSV("output/top_10_cities");
+
     cout << "\n Você quer ver o dataframe com as 10 cidades mais ativas? (y/n)" << endl;
     cin >> answer;
     if (answer == "y" || answer == "Y") {
@@ -142,8 +146,10 @@ int main() {
     });
     pool.isReady(STATS);
     DataFrame summary = stats.get();
-    cout << summary.getNumRecords() << "estatísticas descritivas calculadas com sucesso." << endl;
-    cout << "\n Você quer ver o dataframe com as estatísticas descritivas? (y/n)" << endl;
+    cout << summary.getNumRecords() << " estatísticas descritivas calculadas com sucesso." << endl;
+    summary.DFtoCSV("output/summary_stats");
+
+    cout << "\n Você quer ver o dataframe com as estatísticas descritivas das transações? (y/n)" << endl;
     cin >> answer;
     if (answer == "y" || answer == "Y") {
         summary.printDF();
