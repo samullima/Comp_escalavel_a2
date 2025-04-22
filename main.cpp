@@ -114,7 +114,7 @@ int main() {
     });
     pool.isReady(AMOUNT_MEAN);
 
-    cout << "Agrupando as contas de fazendo a média dos valores..." << endl;
+    cout << "Agrupando as contas e fazendo a média dos valores..." << endl;
     DataFrame grouped = amountMean.get();
 
     auto join = pool.enqueue(JOIN, [&](){
@@ -124,9 +124,14 @@ int main() {
 
     cout << "Juntando DataFrame agrupado com accounts..." << endl;
     DataFrame dfJoin = join.get();
-
+    vector<string> joinNames = dfJoin.getColumnNames();
+    for(const auto& name : joinNames) {
+        cout << name << " ";
+    }
+    cout << endl;
+    cout << dfJoin.getNumRecords() << " registros no dataframe resultante." << endl;
     auto classifications = pool.enqueue(CLASSIFICATION, [&]() {
-        return classify_accounts_parallel(dfJoin, 7, NUM_THREADS, "customer_id", "mean_amount", "current_balance", pool);
+        return classify_accounts_parallel(dfJoin, 7, NUM_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", pool);
     });
     pool.isReady(CLASSIFICATION);
 

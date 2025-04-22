@@ -129,7 +129,7 @@ DataFrame groupby_mean(DataFrame& df, int id, int numThreads, const string& grou
 
     // Novo DataFrame
     vector<string> colNames = {groupCol, "mean_" + targetCol};
-    vector<string> colTypes = {"string", "float"};
+    vector<string> colTypes = {df.getColumnType(df.getColumnIndex(groupCol)), "float"};
     DataFrame resultDf(colNames, colTypes);
 
     for (const auto& [key, pair] : globalMap) {
