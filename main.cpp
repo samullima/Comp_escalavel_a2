@@ -47,7 +47,7 @@ int main() {
     // Leitura do arquivo de transações
     auto transactionsTime = chrono::high_resolution_clock::now();
     future<DataFrame*> transactionsFuture = pool.enqueue(READ_TRANSACTIONS, [&]() {
-        return readCSV("data/transactions/transactions.csv", NUM_THREADS, transactionsColTypes);
+        return readCSV(READ_TRANSACTIONS, "data/transactions/transactions.csv", NUM_THREADS, transactionsColTypes, pool);
     });
     pool.isReady(READ_TRANSACTIONS);
     DataFrame* transactions = transactionsFuture.get();
@@ -58,7 +58,7 @@ int main() {
     // Leitura do arquivo de contas
     auto accountsTime = chrono::high_resolution_clock::now();
     future<DataFrame*> accountsFuture = pool.enqueue(READ_ACCOUNTS, [&]() {
-        return readCSV("data/accounts/accounts.csv", NUM_THREADS, accountsColTypes);
+        return readCSV(READ_ACCOUNTS, "data/accounts/accounts.csv", NUM_THREADS, accountsColTypes, pool);
     });
     pool.isReady(READ_ACCOUNTS);
     DataFrame* accounts = accountsFuture.get();
@@ -69,7 +69,7 @@ int main() {
     // Leitura do arquivo de clientes
     auto customersTime = chrono::high_resolution_clock::now();
     future<DataFrame*> customersFuture = pool.enqueue(READ_CUSTOMERS, [&]() {
-        return readCSV("data/customers/customers.csv", NUM_THREADS, customersColTypes);
+        return readCSV(READ_CUSTOMERS, "data/customers/customers.csv", NUM_THREADS, customersColTypes, pool);
     });
     pool.isReady(READ_CUSTOMERS);
     DataFrame* customers = customersFuture.get();
