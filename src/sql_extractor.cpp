@@ -8,8 +8,8 @@
 
 using namespace std;
 
-int STORAGE_BLOCKSIZE = 30000;
-int PROCESS_BLOCKSIZE = 1000;
+int DBSTORAGE_BLOCKSIZE = 30000;
+int DBPROCESS_BLOCKSIZE = 1000;
 
 using holyTuple = tuple<vector<vector<string>>*, vector<vector<string>>*, mutex*, DataFrame*, bool*>;
 vector<vector<string>>* getLinesRead(holyTuple& data) {
@@ -30,7 +30,7 @@ bool* getColumnsDone(holyTuple& data) {
 
 static int callback(void *data, int argc, char **argv, char **azColName) 
 {
-    int blocksize = STORAGE_BLOCKSIZE;
+    int blocksize = DBSTORAGE_BLOCKSIZE;
 
     holyTuple coolData = *static_cast<holyTuple*>(data);
     vector<vector<string>>* blockRead = getBlockRead(coolData);
@@ -114,7 +114,7 @@ void processDBBlocks(const vector<vector<string>>& linesRead, DataFrame* df, int
     /*
     Esse método processa os blocos lidos do DB e preenche o DataFrame.
     */
-    int blocksize = PROCESS_BLOCKSIZE;
+    int blocksize = DBPROCESS_BLOCKSIZE;
     while(!DBAlreadyRead || recordsCount < linesRead.size()){
         bool canProceed = false;
         mtxCounter.lock();

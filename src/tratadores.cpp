@@ -129,7 +129,7 @@ DataFrame groupby_mean(DataFrame& df, int id, int numThreads, const string& grou
 
     // Novo DataFrame
     vector<string> colNames = {groupCol, "mean_" + targetCol};
-    vector<string> colTypes = {"string", "float"};
+    vector<string> colTypes = {df.getColumnType(df.getColumnIndex(groupCol)), "float"};
     DataFrame resultDf(colNames, colTypes);
 
     for (const auto& [key, pair] : globalMap) {
@@ -733,7 +733,7 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
-
+    
     float lower = (q1 - 0.45f * iqr < 0) ? 1.0f : (q1 - 0.45f * iqr);
     float upper = q3 + 1.25f * iqr;
 
@@ -747,18 +747,19 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     int idxAccountTransac = dfTransac.getColumnIndex(accountColTransac);
     int idxAccountAccount = dfAccount.getColumnIndex(accountColAccount);
     int idxLocationAccount = dfAccount.getColumnIndex(locationColAccount);
-
+    
     const vector<ElementType>& colTrans = dfTransac.getColumn(idxTrans);
     const vector<ElementType>& colAmount = dfTransac.getColumn(idxAmount);
     const vector<ElementType>& colLocationTransac = dfTransac.getColumn(idxLocation);
     const vector<ElementType>& colAccountTransac = dfTransac.getColumn(idxAccountTransac);
     const vector<ElementType>& colAccountAccount = dfAccount.getColumn(idxAccountAccount);
     const vector<ElementType>& colLocationAccount = dfAccount.getColumn(idxLocationAccount);
-
+    
     // Mapeando todos os ids de conta para as suas localizações
     unordered_map<int, string> accountLocationMap;
     for (int i = 0; i < dfAccount.getNumRecords(); i++) 
     {
+
         int id = get<int>(colAccountAccount[i]);
         string loc = get<string>(colLocationAccount[i]);
         accountLocationMap[id] = loc;

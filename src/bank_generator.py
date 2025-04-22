@@ -3,8 +3,12 @@ import random
 from faker import Faker
 from datetime import timedelta
 import sqlite3
-
+import os
+import sys
 fake = Faker()
+
+
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def gerar_contas(n_accounts, n_clients):
     status_conta = ["pendente", "bloqueada", "desbloqueada"]
@@ -57,7 +61,7 @@ def gerar_clientes(n_clients):
     for i in range(n_clients+1):
         name = fake.name()
         email = fake.email()
-        address = fake.address().replace("\n", " - ")
+        address = fake.address().replace("\n", " - ").replace(",", "_")
         phone = int(fake.msisdn()[0:11])  
 
         dados.append({
@@ -96,7 +100,7 @@ def gerar_transacoes(df_contas, n_transactions):
     for i in range(n_transactions):
         account_id = random.randint(0, n_accounts) 
         recipient_id = random.randint(0, n_accounts)
-        amount = round(random.uniform(10.0, 700.0), 2)
+        amount = round(random.uniform(10.0, 900.0), 2)
         tipo = random.choice(tipos_transacoes)
 
         time_start = lista_time_starts[i]

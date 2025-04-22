@@ -1,71 +1,203 @@
 #include <iostream>
-#include <chrono>
-
+#include <future>
 #include "include/df.h"
-#include "include/threads.h"
-#include "include/csv_extractor.h"
 #include "include/tratadores.h"
+#include "include/csv_extractor.h"
+#include "include/sql_extractor.h"
+#include "include/threads.h"
 
-using namespace std::chrono;
+using namespace std;
 
-mutex cout_mutex;
+// transactions
+// transation_id,account_id,recipient_id,amount,type,time_start,location,processed_at
+// 0,1,9810,4467.93,retirada,13:10:01.847319,Abbottchester,13:10:49.847319
+
+// accounts
+// customer_id,account_id,current_balance,account_type,opening_date,account_status,account_location
+// 0,0,11958.77,poupança,2025-03-21,desbloqueada,Maceió
+
+// customers
+// customer_id,name,email,address,phone
+// 0,Christopher West,rachelshannon@example.org,"1626 Miranda Canyon Suite 013 - New Michael, FL 05173",78600532445
+
+// Define o ID para cada pool de threads
+// Isso é importante para que o pool saiba qual tarefa está sendo executada
+enum PoolID {
+    READ_TRANSACTIONS = 1,
+    READ_ACCOUNTS = 2,
+    READ_CUSTOMERS = 3,
+    ABNORMAL = 4,
+    AMOUNT_MEAN = 5,
+    JOIN = 6,
+    CLASSIFICATION = 7,
+    TOP_CITIES = 8,
+    STATS = 9, 
+    NUM_DAYS = 10,
+    MEAN_NUM_TRANSACTIONS = 11
+};
 
 int main() {
-    string file1 = "data/transactions/transaction_4_2.csv";
-    string file2 = "data/transactions/transaction_4_2.csv";
-    string file3 = "data/transactions/transactions.csv";
+    // Número de threads concorrentes do sistema
+    const int NUM_THREADS = thread::hardware_concurrency();
+    ThreadPool pool(NUM_THREADS);
+    cout << "Quantidade de threads concorrentes disponíveis no sistema: " << NUM_THREADS << endl;
+    cout << "--------------------------\n\n" << endl;
 
-    vector<int> thread_counts = {1, 2, 4, 8, 16};
+    // Tipagem das colunas
+    vector<string> transactionsColTypes = {"int", "int", "int", "float", "string", "string", "string", "string"};
+    vector<string> accountsColTypes = {"int", "int", "float", "string", "string", "string", "string"};
+    vector<string> customersColTypes = {"int", "string", "string", "string", "string"};
 
-    for (int num_threads : thread_counts) {
-        cout << "\n======================" << endl;
-        cout << "   Threads: " << num_threads << endl;
-        cout << "======================\n" << endl;
+    // Leitura do arquivo de transações
+    auto transactionsTime = chrono::high_resolution_clock::now();
+    future<DataFrame*> transactionsFuture = pool.enqueue(READ_TRANSACTIONS, [&]() {
+        return readCSV(READ_TRANSACTIONS, "data/transactions/transactions.csv", NUM_THREADS, transactionsColTypes, pool);
+    });
+    pool.isReady(READ_TRANSACTIONS);
+    DataFrame* transactions = transactionsFuture.get();
+    auto transactionsEndTime = chrono::high_resolution_clock::now();
+    auto transactionsDuration = chrono::duration_cast<chrono::milliseconds>(transactionsEndTime - transactionsTime);
+    cout << "Dataframe de transações lido com sucesso." << endl;
 
-        ThreadPool tp(num_threads);
+    // Leitura do arquivo de contas
+    auto accountsTime = chrono::high_resolution_clock::now();
+    future<DataFrame*> accountsFuture = pool.enqueue(READ_ACCOUNTS, [&]() {
+        return readCSV(READ_ACCOUNTS, "data/accounts/accounts.csv", NUM_THREADS, accountsColTypes, pool);
+    });
+    pool.isReady(READ_ACCOUNTS);
+    DataFrame* accounts = accountsFuture.get();
+    auto accountsEndTime = chrono::high_resolution_clock::now();
+    auto accountsDuration = chrono::duration_cast<chrono::milliseconds>(accountsEndTime - accountsTime);
+    cout << "Dataframe de contas lido com sucesso." << endl;
 
-        auto start = high_resolution_clock::now();
-        DataFrame* df1 = readCSV(file1, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
-        DataFrame* df2 = readCSV(file2, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
-        DataFrame* df = readCSV(file3, num_threads, {"int", "int", "int", "float", "string", "string", "string", "string"});
-        auto end = high_resolution_clock::now();
+    // Leitura do arquivo de clientes
+    auto customersTime = chrono::high_resolution_clock::now();
+    future<DataFrame*> customersFuture = pool.enqueue(READ_CUSTOMERS, [&]() {
+        return readCSV(READ_CUSTOMERS, "data/customers/customers.csv", NUM_THREADS, customersColTypes, pool);
+    });
+    pool.isReady(READ_CUSTOMERS);
+    DataFrame* customers = customersFuture.get();
+    auto customersEndTime = chrono::high_resolution_clock::now();
+    auto customersDuration = chrono::duration_cast<chrono::milliseconds>(customersEndTime - customersTime);
+    cout << "Dataframe de clientes lido com sucesso." << endl;
+    
+    cout << "\n--------------------------" << endl;
+    cout << "Quantidade de registros por dataframe:\n" << endl;
+    cout << "Dataframe de transações: " << transactions->getNumRecords() << " (" << transactionsDuration.count() << " ms)" << endl;
+    cout << "Dataframe de contas: " << accounts->getNumRecords() << " (" << accountsDuration.count() << " ms)" << endl;
+    cout << "Dataframe de clientes: " << customers->getNumRecords() << " (" << customersDuration.count() << " ms)" << endl;
 
-        cout << "[readCSV] Tempo total: "
-             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ IDENTIFICANDO TRANSAÇÕES ANÔMALAS ]" << endl;
+    // Começa a identificar transações anômalas	
+    auto abnormals = pool.enqueue(ABNORMAL, [&]() {
+        return abnormal_transactions(*transactions, *accounts, 4, NUM_THREADS, "transation_id", "amount", "location", "account_id", "account_id", "account_location", pool);
+    });
+    pool.isReady(ABNORMAL);
 
-        start = high_resolution_clock::now();
-        DataFrame joined = join_by_key(*df1, *df2, "account_id", tp);
-        end = high_resolution_clock::now();
-        cout << "[join_by_key] Tempo: "
-             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+    cout << "Identificando transações anômalas..." << endl;
+    DataFrame abnormal = abnormals.get();
+    cout << abnormal.getNumRecords() << " transações anômalas" << endl;
+    abnormal.DFtoCSV("output/abnormal_transactions");
 
-        auto condition = [df](const vector<ElementType>& row) -> bool {
-            float amount = get<float>(row[df->getColumnIndex("amount")]);
-            string type = get<string>(row[df->getColumnIndex("type")]);
-            return amount > 1000 && type == "depósito";
-        };
+    cout << "\n Você quer ver o dataframe com a classificação das transações anômalas? (y/n)" << endl;
+    cout << "(Aviso: esse dataframe pode ser muito grande)" << endl;
+    string answer;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        abnormal.printDF();
+    }
 
-        start = high_resolution_clock::now();
-        DataFrame filtered = filter_records(*df, condition, num_threads, tp);
-        end = high_resolution_clock::now();
-        cout << "[filter_records] Tempo: "
-             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ CLASSIFICANDO CLIENTES ]" << endl;
+    
+    auto amountMean = pool.enqueue(AMOUNT_MEAN, [&]() {
+        return groupby_mean(*transactions, 5, NUM_THREADS, "account_id", "amount", pool);
+    });
+    pool.isReady(AMOUNT_MEAN);
 
-        start = high_resolution_clock::now();
-        DataFrame grouped = groupby_mean(*df, "location", "amount", tp);
-        end = high_resolution_clock::now();
-        cout << "[groupby_mean] Tempo: "
-             << duration_cast<milliseconds>(end - start).count() << " ms" << endl;
+    cout << "Agrupando as contas e fazendo a média dos valores..." << endl;
+    DataFrame grouped = amountMean.get();
 
-        if (num_threads == thread_counts.back()) {
-            joined.DFtoCSV("joined" + num_threads);
-            filtered.DFtoCSV("filtered" + num_threads);
-            grouped.DFtoCSV("grouped" + num_threads);
-        }
+    auto join = pool.enqueue(JOIN, [&](){
+        return join_by_key(grouped, *accounts, 6, NUM_THREADS, "account_id", pool);
+    });
+    pool.isReady(JOIN);
 
-        delete df1;
-        delete df2;
-        delete df;
+    cout << "Juntando DataFrame agrupado com accounts..." << endl;
+    DataFrame dfJoin = join.get();
+
+    auto classifications = pool.enqueue(CLASSIFICATION, [&]() {
+        return classify_accounts_parallel(dfJoin, 7, NUM_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", pool);
+    });
+    pool.isReady(CLASSIFICATION);
+
+    cout << "Classificando clientes..." << endl;
+    DataFrame classified = classifications.get();
+    cout << classified.getNumRecords() << " clientes classificados com sucesso." << endl; 
+    classified.DFtoCSV("output/classified_accounts");
+
+    cout << "\n Você quer ver o dataframe com a classificação dos clientes? (y/n)" << endl;
+    cout << "(Aviso: esse dataframe pode ser muito grande)" << endl;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        classified.printDF();
+    }
+
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ IDENTIFICANDO LOCALIDADES MAIS ATIVAS ]" << endl;
+    auto top_10_cities = pool.enqueue(TOP_CITIES, [&]() {
+        return top_10_cidades_transacoes(*transactions, 8, NUM_THREADS, "location", pool);
+    });
+    pool.isReady(TOP_CITIES);
+    DataFrame top_cities = top_10_cities.get();
+    cout << top_cities.getNumRecords() << " capitais mais ativas classificadas com sucesso." << endl;
+    top_cities.DFtoCSV("output/top_10_cities");
+
+    cout << "\n Você quer ver o dataframe com as 10 capitais mais ativas? (y/n)" << endl;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        top_cities.printDF();
+    }
+
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ CALCULANDO ESTATÍSTICAS DESCRITIVAS DA COLUNA AMOUNT ]" << endl;
+    auto stats = pool.enqueue(STATS, [&]() {
+        return summaryStats(*transactions, 9, NUM_THREADS, "amount", pool);
+    });
+    pool.isReady(STATS);
+    DataFrame summary = stats.get();
+    cout << summary.getNumRecords() << " estatísticas descritivas calculadas com sucesso." << endl;
+    summary.DFtoCSV("output/summary_stats");
+
+    cout << "\n Você quer ver o dataframe com as estatísticas descritivas dos valores das transações? (y/n)" << endl;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        summary.printDF();
+    }
+
+    cout << "\n\n--------------------------" << endl;
+    cout << "[ CALCULANDO A MÉDIA DE TRANSAÇÕES POR HORA ]" << endl;
+    
+    auto countDays = pool.enqueue(NUM_DAYS, [&](){
+        return count_values(*transactions, 10, NUM_THREADS, "date", 0, pool);
+    });
+    pool.isReady(NUM_DAYS);
+    DataFrame dfNumDays = countDays.get();
+    int numDays = dfNumDays.getNumRecords();
+
+    auto numTransac = pool.enqueue(MEAN_NUM_TRANSACTIONS, [&]{
+        return num_transac_by_hour(*transactions, 10, NUM_THREADS, "time_start", numDays, pool);
+    });
+    pool.isReady(MEAN_NUM_TRANSACTIONS);
+    DataFrame dfNumTransac = numTransac.get();
+    cout << dfNumTransac.getNumRecords() << " transações para cada hora obtidas." << endl;
+    dfNumTransac.DFtoCSV("output/num_transactions");
+
+    cout << "\n Você quer ver o dataframe com a média de transações por hora? (y/n)" << endl;
+    cin >> answer;
+    if (answer == "y" || answer == "Y") {
+        dfNumTransac.printDF();
     }
 
     return 0;
