@@ -17,7 +17,7 @@ def plot_classificacao_contas(df):
         linewidth=1.2,
         ax=ax
     )
-    plt.title("Distribuição das Classes de Conta", fontsize=16, fontweight="bold", pad=20)
+    plt.title("", fontsize=16, fontweight="bold", pad=20)
     plt.xlabel("Classe da Conta", fontsize=14, labelpad=10)
     plt.ylabel("Quantidade", fontsize=14, labelpad=10)
     ax.tick_params(axis="both", which="major", labelsize=12)
@@ -44,7 +44,7 @@ def plot_top_10_cidades(df):
         linewidth=1.2,
         ax=ax
     )
-    plt.title("Quantidade de Transações por Cidade", fontsize=18, fontweight="bold", pad=20)
+    plt.title("", fontsize=18, fontweight="bold", pad=20)
     plt.xlabel("", fontsize=14, labelpad=10)
     plt.ylabel("Quantidade", fontsize=14, labelpad=10)
     plt.xticks(rotation=45, ha="right", fontsize=12)
@@ -74,7 +74,7 @@ def plot_transacoes_dia(df):
         color="purple",
         ax=ax
     )
-    plt.title("Média de Transações por Dia", fontsize=18, fontweight="bold", pad=20)
+    plt.title("", fontsize=18, fontweight="bold", pad=20)
     plt.xlabel("Data", fontsize=14, labelpad=10)
     plt.ylabel("Número de Transações", fontsize=14, labelpad=10)
     plt.xticks(rotation=45, ha="right", fontsize=12)
@@ -84,13 +84,13 @@ def plot_transacoes_dia(df):
     st.pyplot(fig)
 
 def plot_anormalidades(df):
-    df_melted = df.melt(id_vars="account_id", value_vars=["flag_1", "flag_2"])
+    df_melted = df.melt(id_vars="account_id", value_vars=["valor", "local"])
     df_melted = df_melted[df_melted["value"] == 1]
 
     fig, ax = plt.subplots(figsize=(8, 5))
     sns.countplot(data=df_melted, x="variable", edgecolor="black", linewidth=1.2, ax=ax)
 
-    ax.set_title("Quantidade de Contas com Anormalidade", fontsize=16, fontweight="bold", pad=20)
+    ax.set_title("", fontsize=16, fontweight="bold", pad=20)
     ax.set_xlabel("Tipo de Anormalidade", fontsize=14, labelpad=10)
     ax.set_ylabel("Quantidade", fontsize=14, labelpad=10)
     ax.tick_params(axis="both", labelsize=12)
@@ -141,16 +141,16 @@ if st.button("🔄 Refresh"):
     """)
     plot_classificacao_contas(df_classificacao)
 
-    st.header("Quantidade de Transações por Cidade")
+    st.header("Top 10 Capitais com mais Transações")
     plot_top_10_cidades(df_cidades)
 
     st.header("Média de Transações por Dia")
     plot_transacoes_dia(df_transacoes)
     
-    st.header("Anormaliades")
+    st.header("Transações Anormais")
     plot_anormalidades(df_anormalidades)
 
-    st.header("Summary")
+    st.header("Summary das Transações")
     show_summary_table(df_summary)
 
 else:
