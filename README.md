@@ -25,7 +25,8 @@ gcc -c include/sqlite3.c
 * `dashboard/`: contém os arquivos que geram o dashboard Streamlit para visualização dos resultados dos tratadores;
 * `tests/`: contém dois arquivos de testes para os extratores de CSV e de SQLite;
 * `src/`: contém as implementações dos tratadores, extratores e estrutura do dataframe, além de um arquivo que gera dados bancários sintéticos para analisarmos;
-* `main.cpp`: driver code do projeto, mostra o funcionamento de alguns tratadores.
+* `main.cpp`: driver code do projeto, mostra o funcionamento de alguns tratadores;
+* `home.py`: arquivo que gera o dashboard com os resultados.
 
 ## Execução
 
@@ -53,6 +54,12 @@ seguido de
 
 ```bash
 $ ./sqlite_test.exe
+```
+
+Para visualizar o dashboard, execute
+
+```bash
+streamlit run home.py 
 ```
 
 Da mesma forma, para rodar os testes CSV, execute
