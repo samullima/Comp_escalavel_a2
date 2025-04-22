@@ -348,14 +348,6 @@ DataFrame get_hour_by_time(const DataFrame& df, int id, int numThreads, const st
         hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
     }
 
-    // for (auto& f : futures)
-    // {
-    //     vector<string> partial = f.get();
-    //     cout << "get hour threads finished" << endl;
-    //     hoursColumn.insert(hoursColumn.end(), partial.begin(), partial.end());
-    // }
-
-    // Pegando tipo/nome da coluna original
     string typeColumn = df.getColumnType(idxColumn);
     string nameColumn = df.getColumnName(idxColumn);
 
@@ -514,17 +506,14 @@ DataFrame sort_by_column_parallel(const DataFrame& df, int id, int numThreads, c
                 }
                 return false;
             });
-            cout << "Thread " << i << " finished sorting block from " << start << " to " << end << endl;
             sortedBlocks[i] = move(local);
             promises[i].set_value();
-            cout << "t_in_sort" << endl;
         });
     }
 
     pool.isReady(-id);
 
     for (auto& f : futures) f.get();
-    cout << "sort_by_column_parallel finished" << endl;
 
     // Merge com heap
     auto cmp = [&](pair<size_t, int> a, pair<size_t, int> b) {
@@ -582,7 +571,6 @@ unordered_map<string, ElementType> getQuantiles(const DataFrame& df, int id, int
     unordered_map<string, ElementType> result;
 
     DataFrame sortedDf = sort_by_column_parallel(df, id, numThreads, colName, pool, true);
-    cout << "p quantile" << endl;
     const auto& sortedCol = sortedDf.getColumn(sortedDf.getColumnIndex(colName));
     int n = sortedDf.getNumRecords();
 
@@ -742,7 +730,6 @@ DataFrame top_10_cidades_transacoes(const DataFrame& df, int id, int numThreads,
 DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfAccount, int id, int numThreads, const string& transactionIDCol, const string& amountCol, const string& locationColTransac, const string& accountColTransac, const string& accountColAccount, const string& locationColAccount, ThreadPool& pool)
 {
     unordered_map<string, ElementType> quantiles = getQuantiles(dfTransac, id, numThreads, amountCol, {0.25, 0.75}, pool);
-    cout << "preemptive" << endl;
     float q1 = get<float>(quantiles["Q25"]);
     float q3 = get<float>(quantiles["Q75"]);
     float iqr = q3 - q1;
@@ -750,15 +737,9 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
     float lower = (q1 - 0.45f * iqr < 0) ? 1.0f : (q1 - 0.45f * iqr);
     float upper = q3 + 1.25f * iqr;
 
-    //cout << "Q1: " << q1 << ", Q3: " << q3 << ", Lower: " << lower << ", Upper: " << upper << endl;
-
     size_t dataSize = dfTransac.getNumRecords();
     numThreads = min(numThreads, static_cast<int>(dataSize));
     size_t blockSize = (dataSize + numThreads - 1) / numThreads;
-
-    // cout << "Data Size: " << dataSize << endl;
-    // cout << "Num Threads: " << numThreads << endl;
-    // cout << "Block Size: " << blockSize << endl;
 
     int idxTrans = dfTransac.getColumnIndex(transactionIDCol);
     int idxAmount = dfTransac.getColumnIndex(amountCol);
@@ -817,11 +798,8 @@ DataFrame abnormal_transactions(const DataFrame& dfTransac, const DataFrame& dfA
                 bool isLocationSus = (locationTransac != locationAccount);
                 if (isAmountSus || isLocationSus) {
                     ids.push_back(id);
-                    cout << "c1" << endl;
                     suspiciousLocation.push_back(isLocationSus);
-                    cout << "c2" << endl;
                     suspiciousAmount.push_back(isAmountSus);
-                    cout << "c3" << endl;
                 }
             }
 
