@@ -112,15 +112,14 @@ inline ThreadPool::ThreadPool(size_t numThreads) : stop(false), active_threads(0
 
                     task = move(tasks.front());
                     tasks.pop();
-                    active_threads++; // nova linha
+                    active_threads++; 
                 }
                 try{
                     task();
                 }catch (std::exception& e){
                     cout<<"running task, with exception..."<<e.what()<<endl;
-                    // return;
                 }
-                active_threads--; // nova linha
+                active_threads--; 
             }
         });
     }
