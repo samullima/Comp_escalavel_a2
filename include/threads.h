@@ -184,11 +184,11 @@ inline void ThreadPool::periodic_task(int id, std::function<void()> func, int in
     Executa uma task de tempos em tempos. 
     Garante que a ordem natural (0,1,..) dessas tasks estejam respeitadas. 
     */
-    std::thread([this, id, func, interval_seconds]() {
+    thread([this, id, func, interval_seconds]() {
         int i = 0;    // Número da chamada
         while (!stop) {
             {
-                std::lock_guard<std::mutex> lock(cout_mutex);
+                lock_guard<mutex> lock(cout_mutex);
                 cout << "Task Periódica " << id << " na chamada " << i << ".";
             }
 
@@ -197,7 +197,7 @@ inline void ThreadPool::periodic_task(int id, std::function<void()> func, int in
 
             // Espera a task terminar antes de seguir
             fut.get(); 
-            std::this_thread::sleep_for(std::chrono::seconds(interval_seconds));
+            this_thread::sleep_for(chrono::seconds(interval_seconds));
             i++;
         }
     }).detach();
