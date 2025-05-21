@@ -68,6 +68,9 @@ class ThreadPool {
         // Informa ao pool que a task com ID está liberada para execução
         void isReady(int id);
 
+        // Task executada de tempos em tempos
+        void periodic_task(int id, std::function<void()> func, int interval_seconds);
+
         ~ThreadPool();
         
         size_t size() const;
@@ -174,6 +177,32 @@ inline void ThreadPool::isReady(int id) {
     // Acorda todas as threads para pegar novas tasks
     condition.notify_all();         
 }
+
+
+inline void ThreadPool::periodic_task(int id, std::function<void()> func, int interval_seconds) {
+    /*
+    Executa uma task de tempos em tempos. 
+    Garante que a ordem natural (0,1,..) dessas tasks estejam respeitadas. 
+    */
+    std::thread([this, id, func, interval_seconds]() {
+        int i = 0;    // Número da chamada
+        while (!stop) {
+            {
+                std::lock_guard<std::mutex> lock(cout_mutex);
+                cout << "Task Periódica " << id << " na chamada " << i << ".";
+            }
+
+            auto fut = this->enqueue(id, func);
+            this->isReady(id);
+
+            // Espera a task terminar antes de seguir
+            fut.get(); 
+            std::this_thread::sleep_for(std::chrono::seconds(interval_seconds));
+            i++;
+        }
+    }).detach();
+}
+
 
 // Destrutor
 inline ThreadPool::~ThreadPool() {
