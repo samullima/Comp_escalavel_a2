@@ -1,0 +1,15 @@
+transation_id,account_id,recipient_id,amount,type,location,time_start,time_end,date
+0,3294,5890,751.55,depósito,Florianópolis,00:00:28,00:01:10,2025-01-01
+1,8503,9155,671.51,pagamento,João Pessoa,00:00:42,00:01:16,2025-01-01
+2,3294,9155,210.73,depósito,Macapá,20:10:20,20:16:53,2025-05-22
+3,6980,2497,611.54,pagamento,Macapá,09:49:00,10:39:34,2025-05-22
+4,8027,1768,147.00,depósito,Florianópolis,10:51:10,11:17:33,2025-05-22
+5,6096,1768,653.79,pagamento,João Pessoa,20:44:57,21:29:37,2025-05-22
+6,8027,5890,400.48,depósito,Porto Alegre,18:41:00,18:58:08,2025-05-22
+7,6096,1768,531.89,depósito,Florianópolis,20:47:25,20:58:10,2025-05-22
+8,6096,7222,903.21,depósito,Florianópolis,15:39:37,16:17:25,2025-05-22
+9,6980,2497,891.16,pagamento,Florianópolis,03:49:43,04:32:41,2025-05-22
+10,8027,1768,503.25,depósito,Boa Vista,14:45:52,15:17:37,2025-05-22
+11,8503,5890,148.65,pagamento,Florianópolis,23:21:43,23:39:49,2025-05-22
+12,6096,1768,405.51,depósito,Florianópolis,02:09:17,02:42:03,2025-05-22
+13,3294,1768,540.32,pagamento,Florianópolis,09:54:51,10:30:49,2025-05-22
