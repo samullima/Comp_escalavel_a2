@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from grpc import dataframe_pb2 as grpc_dot_dataframe__pb2
 
 GRPC_GENERATED_VERSION = '1.71.0'
@@ -37,22 +38,32 @@ class DataFrameServiceStub(object):
         self.ClassifyAccountsParallel = channel.unary_unary(
                 '/dataframe.DataFrameService/ClassifyAccountsParallel',
                 request_serializer=grpc_dot_dataframe__pb2.ClassifyAccountsRequest.SerializeToString,
-                response_deserializer=grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+                response_deserializer=grpc_dot_dataframe__pb2.OperationResponse.FromString,
                 _registered_method=True)
         self.SummaryStats = channel.unary_unary(
                 '/dataframe.DataFrameService/SummaryStats',
                 request_serializer=grpc_dot_dataframe__pb2.SummaryStatsRequest.SerializeToString,
-                response_deserializer=grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+                response_deserializer=grpc_dot_dataframe__pb2.OperationResponse.FromString,
                 _registered_method=True)
         self.Top10CidadesTransacoes = channel.unary_unary(
                 '/dataframe.DataFrameService/Top10CidadesTransacoes',
                 request_serializer=grpc_dot_dataframe__pb2.Top10CidadesRequest.SerializeToString,
-                response_deserializer=grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+                response_deserializer=grpc_dot_dataframe__pb2.OperationResponse.FromString,
                 _registered_method=True)
         self.AbnormalTransactions = channel.unary_unary(
                 '/dataframe.DataFrameService/AbnormalTransactions',
                 request_serializer=grpc_dot_dataframe__pb2.AbnormalTransactionsRequest.SerializeToString,
-                response_deserializer=grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+                response_deserializer=grpc_dot_dataframe__pb2.OperationResponse.FromString,
+                _registered_method=True)
+        self.AddTransaction = channel.unary_unary(
+                '/dataframe.DataFrameService/AddTransaction',
+                request_serializer=grpc_dot_dataframe__pb2.AddTransactionRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.AddAccount = channel.unary_unary(
+                '/dataframe.DataFrameService/AddAccount',
+                request_serializer=grpc_dot_dataframe__pb2.AddAccountRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
 
 
@@ -83,28 +94,51 @@ class DataFrameServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def AddTransaction(self, request, context):
+        """Novas funções
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AddAccount(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DataFrameServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'ClassifyAccountsParallel': grpc.unary_unary_rpc_method_handler(
                     servicer.ClassifyAccountsParallel,
                     request_deserializer=grpc_dot_dataframe__pb2.ClassifyAccountsRequest.FromString,
-                    response_serializer=grpc_dot_dataframe__pb2.DataFrameResponse.SerializeToString,
+                    response_serializer=grpc_dot_dataframe__pb2.OperationResponse.SerializeToString,
             ),
             'SummaryStats': grpc.unary_unary_rpc_method_handler(
                     servicer.SummaryStats,
                     request_deserializer=grpc_dot_dataframe__pb2.SummaryStatsRequest.FromString,
-                    response_serializer=grpc_dot_dataframe__pb2.DataFrameResponse.SerializeToString,
+                    response_serializer=grpc_dot_dataframe__pb2.OperationResponse.SerializeToString,
             ),
             'Top10CidadesTransacoes': grpc.unary_unary_rpc_method_handler(
                     servicer.Top10CidadesTransacoes,
                     request_deserializer=grpc_dot_dataframe__pb2.Top10CidadesRequest.FromString,
-                    response_serializer=grpc_dot_dataframe__pb2.DataFrameResponse.SerializeToString,
+                    response_serializer=grpc_dot_dataframe__pb2.OperationResponse.SerializeToString,
             ),
             'AbnormalTransactions': grpc.unary_unary_rpc_method_handler(
                     servicer.AbnormalTransactions,
                     request_deserializer=grpc_dot_dataframe__pb2.AbnormalTransactionsRequest.FromString,
-                    response_serializer=grpc_dot_dataframe__pb2.DataFrameResponse.SerializeToString,
+                    response_serializer=grpc_dot_dataframe__pb2.OperationResponse.SerializeToString,
+            ),
+            'AddTransaction': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddTransaction,
+                    request_deserializer=grpc_dot_dataframe__pb2.AddTransactionRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'AddAccount': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddAccount,
+                    request_deserializer=grpc_dot_dataframe__pb2.AddAccountRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -133,7 +167,7 @@ class DataFrameService(object):
             target,
             '/dataframe.DataFrameService/ClassifyAccountsParallel',
             grpc_dot_dataframe__pb2.ClassifyAccountsRequest.SerializeToString,
-            grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+            grpc_dot_dataframe__pb2.OperationResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -160,7 +194,7 @@ class DataFrameService(object):
             target,
             '/dataframe.DataFrameService/SummaryStats',
             grpc_dot_dataframe__pb2.SummaryStatsRequest.SerializeToString,
-            grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+            grpc_dot_dataframe__pb2.OperationResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -187,7 +221,7 @@ class DataFrameService(object):
             target,
             '/dataframe.DataFrameService/Top10CidadesTransacoes',
             grpc_dot_dataframe__pb2.Top10CidadesRequest.SerializeToString,
-            grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+            grpc_dot_dataframe__pb2.OperationResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -214,7 +248,61 @@ class DataFrameService(object):
             target,
             '/dataframe.DataFrameService/AbnormalTransactions',
             grpc_dot_dataframe__pb2.AbnormalTransactionsRequest.SerializeToString,
-            grpc_dot_dataframe__pb2.DataFrameResponse.FromString,
+            grpc_dot_dataframe__pb2.OperationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddTransaction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dataframe.DataFrameService/AddTransaction',
+            grpc_dot_dataframe__pb2.AddTransactionRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AddAccount(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/dataframe.DataFrameService/AddAccount',
+            grpc_dot_dataframe__pb2.AddAccountRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,

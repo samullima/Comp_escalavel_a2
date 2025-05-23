@@ -22,31 +22,38 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14grpc/dataframe.proto\x12\tdataframe\"d\n\x07\x45lement\x12\x11\n\x07int_val\x18\x01 \x01(\x05H\x00\x12\x13\n\tfloat_val\x18\x02 \x01(\x02H\x00\x12\x12\n\x08\x62ool_val\x18\x03 \x01(\x08H\x00\x12\x14\n\nstring_val\x18\x04 \x01(\tH\x00\x42\x07\n\x05value\"H\n\x06\x43olumn\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\"\n\x06values\x18\x03 \x03(\x0b\x32\x12.dataframe.Element\"T\n\tDataFrame\x12\x12\n\nnumRecords\x18\x01 \x01(\x05\x12\x0f\n\x07numCols\x18\x02 \x01(\x05\x12\"\n\x07\x63olumns\x18\x03 \x03(\x0b\x32\x11.dataframe.Column\"5\n\x11\x44\x61taFrameResponse\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\"\x90\x01\n\x17\x43lassifyAccountsRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\r\n\x05idCol\x18\x04 \x01(\t\x12\x12\n\nclassFirst\x18\x05 \x01(\t\x12\x10\n\x08\x63lassSec\x18\x06 \x01(\t\"h\n\x13SummaryStatsRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\x0f\n\x07\x63olName\x18\x04 \x01(\t\"h\n\x13Top10CidadesRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\x0f\n\x07\x63olName\x18\x04 \x01(\t\"\xaa\x02\n\x1b\x41\x62normalTransactionsRequest\x12\'\n\tdfTransac\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\'\n\tdfAccount\x18\x02 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x03 \x01(\x05\x12\x12\n\nnumThreads\x18\x04 \x01(\x05\x12\x18\n\x10transactionIDCol\x18\x05 \x01(\t\x12\x11\n\tamountCol\x18\x06 \x01(\t\x12\x1a\n\x12locationColTransac\x18\x07 \x01(\t\x12\x19\n\x11\x61\x63\x63ountColTransac\x18\x08 \x01(\t\x12\x19\n\x11\x61\x63\x63ountColAccount\x18\t \x01(\t\x12\x1a\n\x12locationColAccount\x18\n \x01(\t2\xf4\x02\n\x10\x44\x61taFrameService\x12\\\n\x18\x43lassifyAccountsParallel\x12\".dataframe.ClassifyAccountsRequest\x1a\x1c.dataframe.DataFrameResponse\x12L\n\x0cSummaryStats\x12\x1e.dataframe.SummaryStatsRequest\x1a\x1c.dataframe.DataFrameResponse\x12V\n\x16Top10CidadesTransacoes\x12\x1e.dataframe.Top10CidadesRequest\x1a\x1c.dataframe.DataFrameResponse\x12\\\n\x14\x41\x62normalTransactions\x12&.dataframe.AbnormalTransactionsRequest\x1a\x1c.dataframe.DataFrameResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14grpc/dataframe.proto\x12\tdataframe\x1a\x1bgoogle/protobuf/empty.proto\"d\n\x07\x45lement\x12\x11\n\x07int_val\x18\x01 \x01(\x05H\x00\x12\x13\n\tfloat_val\x18\x02 \x01(\x02H\x00\x12\x12\n\x08\x62ool_val\x18\x03 \x01(\x08H\x00\x12\x14\n\nstring_val\x18\x04 \x01(\tH\x00\x42\x07\n\x05value\"H\n\x06\x43olumn\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\"\n\x06values\x18\x03 \x03(\x0b\x32\x12.dataframe.Element\"T\n\tDataFrame\x12\x12\n\nnumRecords\x18\x01 \x01(\x05\x12\x0f\n\x07numCols\x18\x02 \x01(\x05\x12\"\n\x07\x63olumns\x18\x03 \x03(\x0b\x32\x11.dataframe.Column\"5\n\x11\x44\x61taFrameResponse\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\"\x90\x01\n\x17\x43lassifyAccountsRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\r\n\x05idCol\x18\x04 \x01(\t\x12\x12\n\nclassFirst\x18\x05 \x01(\t\x12\x10\n\x08\x63lassSec\x18\x06 \x01(\t\"h\n\x13SummaryStatsRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\x0f\n\x07\x63olName\x18\x04 \x01(\t\"h\n\x13Top10CidadesRequest\x12 \n\x02\x64\x66\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x02 \x01(\x05\x12\x12\n\nnumThreads\x18\x03 \x01(\x05\x12\x0f\n\x07\x63olName\x18\x04 \x01(\t\"\xaa\x02\n\x1b\x41\x62normalTransactionsRequest\x12\'\n\tdfTransac\x18\x01 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\'\n\tdfAccount\x18\x02 \x01(\x0b\x32\x14.dataframe.DataFrame\x12\n\n\x02id\x18\x03 \x01(\x05\x12\x12\n\nnumThreads\x18\x04 \x01(\x05\x12\x18\n\x10transactionIDCol\x18\x05 \x01(\t\x12\x11\n\tamountCol\x18\x06 \x01(\t\x12\x1a\n\x12locationColTransac\x18\x07 \x01(\t\x12\x19\n\x11\x61\x63\x63ountColTransac\x18\x08 \x01(\t\x12\x19\n\x11\x61\x63\x63ountColAccount\x18\t \x01(\t\x12\x1a\n\x12locationColAccount\x18\n \x01(\t\"#\n\x11OperationResponse\x12\x0e\n\x06result\x18\x01 \x01(\t\"\x81\x01\n\x15\x41\x64\x64TransactionRequest\x12\x16\n\x0etransaction_id\x18\x01 \x01(\x05\x12\x17\n\x0f\x66rom_account_id\x18\x02 \x01(\x05\x12\x15\n\rto_account_id\x18\x03 \x01(\x05\x12\x0e\n\x06\x61mount\x18\x04 \x01(\x02\x12\x10\n\x08location\x18\x05 \x01(\t\"H\n\x11\x41\x64\x64\x41\x63\x63ountRequest\x12\x12\n\naccount_id\x18\x01 \x01(\x05\x12\r\n\x05owner\x18\x02 \x01(\t\x12\x10\n\x08location\x18\x03 \x01(\t2\x84\x04\n\x10\x44\x61taFrameService\x12\\\n\x18\x43lassifyAccountsParallel\x12\".dataframe.ClassifyAccountsRequest\x1a\x1c.dataframe.OperationResponse\x12L\n\x0cSummaryStats\x12\x1e.dataframe.SummaryStatsRequest\x1a\x1c.dataframe.OperationResponse\x12V\n\x16Top10CidadesTransacoes\x12\x1e.dataframe.Top10CidadesRequest\x1a\x1c.dataframe.OperationResponse\x12\\\n\x14\x41\x62normalTransactions\x12&.dataframe.AbnormalTransactionsRequest\x1a\x1c.dataframe.OperationResponse\x12J\n\x0e\x41\x64\x64Transaction\x12 .dataframe.AddTransactionRequest\x1a\x16.google.protobuf.Empty\x12\x42\n\nAddAccount\x12\x1c.dataframe.AddAccountRequest\x1a\x16.google.protobuf.Emptyb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'grpc.dataframe_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_ELEMENT']._serialized_start=35
-  _globals['_ELEMENT']._serialized_end=135
-  _globals['_COLUMN']._serialized_start=137
-  _globals['_COLUMN']._serialized_end=209
-  _globals['_DATAFRAME']._serialized_start=211
-  _globals['_DATAFRAME']._serialized_end=295
-  _globals['_DATAFRAMERESPONSE']._serialized_start=297
-  _globals['_DATAFRAMERESPONSE']._serialized_end=350
-  _globals['_CLASSIFYACCOUNTSREQUEST']._serialized_start=353
-  _globals['_CLASSIFYACCOUNTSREQUEST']._serialized_end=497
-  _globals['_SUMMARYSTATSREQUEST']._serialized_start=499
-  _globals['_SUMMARYSTATSREQUEST']._serialized_end=603
-  _globals['_TOP10CIDADESREQUEST']._serialized_start=605
-  _globals['_TOP10CIDADESREQUEST']._serialized_end=709
-  _globals['_ABNORMALTRANSACTIONSREQUEST']._serialized_start=712
-  _globals['_ABNORMALTRANSACTIONSREQUEST']._serialized_end=1010
-  _globals['_DATAFRAMESERVICE']._serialized_start=1013
-  _globals['_DATAFRAMESERVICE']._serialized_end=1385
+  _globals['_ELEMENT']._serialized_start=64
+  _globals['_ELEMENT']._serialized_end=164
+  _globals['_COLUMN']._serialized_start=166
+  _globals['_COLUMN']._serialized_end=238
+  _globals['_DATAFRAME']._serialized_start=240
+  _globals['_DATAFRAME']._serialized_end=324
+  _globals['_DATAFRAMERESPONSE']._serialized_start=326
+  _globals['_DATAFRAMERESPONSE']._serialized_end=379
+  _globals['_CLASSIFYACCOUNTSREQUEST']._serialized_start=382
+  _globals['_CLASSIFYACCOUNTSREQUEST']._serialized_end=526
+  _globals['_SUMMARYSTATSREQUEST']._serialized_start=528
+  _globals['_SUMMARYSTATSREQUEST']._serialized_end=632
+  _globals['_TOP10CIDADESREQUEST']._serialized_start=634
+  _globals['_TOP10CIDADESREQUEST']._serialized_end=738
+  _globals['_ABNORMALTRANSACTIONSREQUEST']._serialized_start=741
+  _globals['_ABNORMALTRANSACTIONSREQUEST']._serialized_end=1039
+  _globals['_OPERATIONRESPONSE']._serialized_start=1041
+  _globals['_OPERATIONRESPONSE']._serialized_end=1076
+  _globals['_ADDTRANSACTIONREQUEST']._serialized_start=1079
+  _globals['_ADDTRANSACTIONREQUEST']._serialized_end=1208
+  _globals['_ADDACCOUNTREQUEST']._serialized_start=1210
+  _globals['_ADDACCOUNTREQUEST']._serialized_end=1282
+  _globals['_DATAFRAMESERVICE']._serialized_start=1285
+  _globals['_DATAFRAMESERVICE']._serialized_end=1801
 # @@protoc_insertion_point(module_scope)
