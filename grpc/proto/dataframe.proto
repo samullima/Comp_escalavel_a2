@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+// package dataframe;
+
+message Summary {
+  float mean = 1;
+  float std = 2;
+  float min = 3;
+  float max = 4;
+  float median = 5;
+}
+message Transaction {
+  int32 idSender = 1;
+  int32 idReceiver = 2;
+  float amount = 3;
+}
+
+message GenericInput{}
+message GenericResponse{}
+
+service ProcessingServices{
+  rpc addTransaction(Transaction) returns (GenericResponse);
+  rpc transactionsInfo(GenericInput) returns (Summary);
+}
