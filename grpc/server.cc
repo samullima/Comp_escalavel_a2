@@ -8,9 +8,17 @@
 #include "df.h"
 #include "csv_extractor.h"
 #include "tratadores.h"
+#include <iomanip>
+#include <vector>
+#include <variant>
+#include <string>
+#include <type_traits>
+
+using ElementType = std::variant<int, float, bool, std::string>;
 
 ThreadPool* mainPool;
 DataFrame* TransactionsDF;
+DataFrame* AccountsDF;
 
 /*
     TransactionsDF has the following columns:
@@ -37,6 +45,29 @@ std::string getCurrentTime(){
     return oss.str();
 
     return 0;
+}
+// Versão mais limpa usando ElementType
+int convertToInt(const std::variant<int, float, bool, std::string>& elem) {
+    return std::visit([](const auto& value) -> int {
+        using T = std::decay_t<decltype(value)>;
+        
+        if constexpr (std::is_same_v<T, int>) {
+            return static_cast<int>(value);
+        }
+        else if constexpr (std::is_same_v<T, float>) {
+            return static_cast<int>(value); // Converte float para int
+        }
+        else if constexpr (std::is_same_v<T, bool>) {
+            return value ? 1 : 0; // Converte bool para 0 ou 1
+        }
+        else if constexpr (std::is_same_v<T, std::string>) {
+            try {
+                return std::stoi(value); // Tenta converter string para int
+            } catch (...) {
+                return 0; // Valor padrão se a conversão falhar
+            }
+        }
+    }, elem);
 }
 
 
@@ -67,8 +98,7 @@ class ProcessingImpl : public ProcessingServices::Service {
         // Handle the transactionsInfo request
         int numThreads = std::thread::hardware_concurrency();
         DataFrame summary = summaryStats(*TransactionsDF, 1, numThreads, "amount", *mainPool);
-        cout << "Summary: " << endl;
-        summary.printDF();
+        std::cout << "Summary: " << std::endl;
         float min = std::get<float>(summary.getRecord(0)[1]);
         float q1 = std::get<float>(summary.getRecord(1)[1]);
         float median = std::get<float>(summary.getRecord(2)[1]);
@@ -83,6 +113,19 @@ class ProcessingImpl : public ProcessingServices::Service {
         response->set_mean(mean);
         return ::grpc::Status::OK;
     }
+    ::grpc::Status abnormalTransactions(::grpc::ServerContext* context, const GenericInput* request, Abnormal* response) override {
+        int numThreads = std::thread::hardware_concurrency();
+        DataFrame abnormal = abnormal_transactions(*TransactionsDF, *AccountsDF, 2, numThreads, "transation_id", "amount", "location", "account_id", "account_id", "account_location", *mainPool);
+        std::cout << "Abnormal: " << std::endl;
+        std::vector<ElementType> vectorAbnormal = abnormal.getColumn(0);
+
+        // Converter e adicionar ao response
+        for (const auto& elem : vectorAbnormal) {
+            response->add_vectorabnormal(convertToInt(elem));
+        }
+
+        return ::grpc::Status::OK;
+    }
 };
 
 int main(int argc, char** argv) {
@@ -93,6 +136,7 @@ int main(int argc, char** argv) {
 
     mainPool = new ThreadPool(MAX_THREADS);
     TransactionsDF = readCSV("../../data/transactions/transactions.csv", MAX_THREADS, transactionsColTypes);
+    AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
 
     ProcessingImpl service;
     grpc::ServerBuilder builder;
