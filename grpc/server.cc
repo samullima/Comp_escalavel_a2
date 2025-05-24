@@ -3,6 +3,7 @@
 #include <thread>
 #include <grpcpp/grpcpp.h>
 #include <chrono>
+
 #include "proto/dataframe.grpc.pb.h"
 #include "proto/dataframe.pb.h"
 #include "df.h"
@@ -19,6 +20,10 @@ using ElementType = std::variant<int, float, bool, std::string>;
 ThreadPool* mainPool;
 DataFrame* TransactionsDF;
 DataFrame* AccountsDF;
+vector<float> amounts;
+int NUM_RECORDS = 0;
+float SUM_AMOUNTS = 0.0;
+
 
 /*
     TransactionsDF has the following columns:
@@ -74,6 +79,12 @@ int convertToInt(const std::variant<int, float, bool, std::string>& elem) {
 class ProcessingImpl : public ProcessingServices::Service {
     // Implement your service methods here
     ::grpc::Status addTransaction(::grpc::ServerContext* context, const ::Transaction* request, ::GenericResponse* response) {
+        auto pos = std::lower_bound(amounts.begin(), amounts.end(), request->amount());
+        amounts.insert(pos, request->amount());
+
+        SUM_AMOUNTS += request->amount();
+        NUM_RECORDS++;
+
         // Handle the addTransaction request
         int newID = TransactionsDF->getNumRecords()+1;
         int senderID = request->idsender();
@@ -96,15 +107,37 @@ class ProcessingImpl : public ProcessingServices::Service {
     }
     ::grpc::Status transactionsInfo(::grpc::ServerContext* context, const GenericInput* request, Summary* response) override {
         // Handle the transactionsInfo request
-        int numThreads = std::thread::hardware_concurrency();
-        DataFrame summary = summaryStats(*TransactionsDF, 1, numThreads, "amount", *mainPool);
-        std::cout << "Summary: " << std::endl;
-        float min = std::get<float>(summary.getRecord(0)[1]);
-        float q1 = std::get<float>(summary.getRecord(1)[1]);
-        float median = std::get<float>(summary.getRecord(2)[1]);
-        float q3 = std::get<float>(summary.getRecord(3)[1]);
-        float max = std::get<float>(summary.getRecord(4)[1]);
-        float mean = std::get<float>(summary.getRecord(5)[1]);
+
+        float medianValue;
+        int q1Index, q3Index;
+
+        if (amounts.size() % 2 == 0) {
+            // Even number of elements
+            medianValue = (amounts[amounts.size() / 2 - 1] + amounts[amounts.size() / 2]) / 2;
+        } else {
+            // Odd number of elements
+            medianValue = amounts[amounts.size() / 2];
+        }
+
+        q1Index = static_cast<int>(0.25 * amounts.size());
+        q3Index = static_cast<int>(0.75 * amounts.size());
+
+        float min = amounts[0];
+        float q1 = amounts[q1Index];
+        float median = medianValue;
+        float q3 = amounts[q3Index];
+        float max = amounts[amounts.size() - 1];
+        float mean = SUM_AMOUNTS / NUM_RECORDS;
+
+        cout << "Transactions Info:" << std::endl;
+        cout << "------------------------" << endl;
+        cout << "Min: " << min << std::endl;
+        cout << "Q1: " << q1 << std::endl;
+        cout << "Median: " << median << std::endl;
+        cout << "Q3: " << q3 << std::endl;
+        cout << "Max: " << max << std::endl;
+        cout << "Mean: " << mean << std::endl;
+
         response->set_min(min);
         response->set_q1(q1);
         response->set_median(median);
@@ -137,6 +170,19 @@ int main(int argc, char** argv) {
     mainPool = new ThreadPool(MAX_THREADS);
     TransactionsDF = readCSV("../../data/transactions/transactions.csv", MAX_THREADS, transactionsColTypes);
     AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
+
+    auto column = TransactionsDF->getColumn(3); 
+    amounts.clear();
+    amounts.reserve(column.size());
+    for (const auto& value : column) {
+        amounts.push_back(std::get<float>(value));
+    }
+
+    sort(amounts.begin(),amounts.end());
+    NUM_RECORDS = TransactionsDF->getNumRecords();
+    for (const auto& amount : amounts) {
+        SUM_AMOUNTS += amount;
+    }
 
     ProcessingImpl service;
     grpc::ServerBuilder builder;
