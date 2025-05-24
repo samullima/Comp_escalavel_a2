@@ -20,7 +20,19 @@ message Transaction {
 message GenericInput{}
 message GenericResponse{}
 
+message AccountId{
+  int32 idAccount = 1;
+}
+message Class{
+  string class = 1;
+}
+message NumberOfAccounts{
+  int32 sum = 1;
+}
+
 service ProcessingServices{
   rpc addTransaction(Transaction) returns (GenericResponse);
   rpc transactionsInfo(GenericInput) returns (Summary);
+  rpc accountClass(AccountId) returns (Class);
+  rpc accountByClass(Class) returns (NumberOfAccounts);
 }
