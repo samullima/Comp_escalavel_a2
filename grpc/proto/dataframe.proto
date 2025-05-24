@@ -13,6 +13,7 @@ message Transaction {
   int32 idSender = 1;
   int32 idReceiver = 2;
   float amount = 3;
+  string location = 4;
 }
 
 message GenericInput{}

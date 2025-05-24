@@ -15,6 +15,29 @@ DataFrame* TransactionsDF;
     transation_id,account_id,recipient_id,amount,type,location,time_start,time_end,date
 */
 
+std::string getCurrentDate(){
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d");
+    return ss.str();
+}
+std::string getCurrentTime(){
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    auto localTime = std::localtime(&time);
+
+    auto result = std::put_time(localTime, "%H:%M:%S");
+    
+    std::ostringstream oss;
+    oss << result;
+    return oss.str();
+
+    return 0;
+}
+
+
 class ProcessingImpl : public ProcessingServices::Service {
     // Implement your service methods here
     ::grpc::Status addTransaction(::grpc::ServerContext* context, const ::Transaction* request, ::GenericResponse* response) {
@@ -24,15 +47,17 @@ class ProcessingImpl : public ProcessingServices::Service {
         int receiverID = request->idreceiver();
         float amount = request->amount();
         string type = "pagamento";
-        string location = "Lugar arbitrário";
-        string time_start = "00:00:00";
-        string time_end = "00:00:00";
-        // Today date
-        string date = std::to_string(std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+        string location = request->location();
+        // Now
+        string time_start = getCurrentTime();
+        string time_end = getCurrentTime();
+        // Today date YY MM DD
+        string date = getCurrentDate();
         vector<string> record = {std::to_string(newID), std::to_string(senderID), std::to_string(receiverID), std::to_string(amount), type, location, time_start, time_end, date};
         TransactionsDF->addRecord(record);
 
         std::cout << "Transaction added: " << newID << std::endl;
+        std::cout << "location: " << location << std::endl;
 
         return ::grpc::Status::OK;
     }
