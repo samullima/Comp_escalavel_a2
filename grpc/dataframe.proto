@@ -1,0 +1,105 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+
+package dataframe;
+
+service DataFrameService {
+  // Mudei os tipos de retorno de df para string
+  rpc ClassifyAccountsParallel(ClassifyAccountsRequest) returns (OperationResponse);
+  rpc SummaryStats(SummaryStatsRequest) returns (OperationResponse);
+  rpc Top10CidadesTransacoes(Top10CidadesRequest) returns (OperationResponse);
+  rpc AbnormalTransactions(AbnormalTransactionsRequest) returns (OperationResponse);
+
+  // Novas funções
+  rpc AddTransaction(AddTransactionRequest) returns (google.protobuf.Empty);
+  rpc AddAccount(AddAccountRequest) returns (google.protobuf.Empty);
+}
+
+// Representa o tipo genérico ElementType (variant<int, float, bool, string>)
+message Element {
+  oneof value {
+    int32 int_val = 1;
+    float float_val = 2;
+    bool bool_val = 3;
+    string string_val = 4;
+  }
+}
+
+// Representa uma coluna com metadados e dados
+message Column {
+  string name = 1;
+  string type = 2; // Ex: "int", "float", "bool", "string"
+  repeated Element values = 3;
+}
+
+// Estrutura completa do DataFrame
+message DataFrame {
+  int32 numRecords = 1;
+  int32 numCols = 2;
+  repeated Column columns = 3;
+}
+
+// Resposta com DataFrame
+message DataFrameResponse {
+  DataFrame df = 1;
+}
+
+// Requisições dos métodos
+message ClassifyAccountsRequest {
+  DataFrame df = 1;
+  int32 id = 2;
+  int32 numThreads = 3;
+  string idCol = 4;
+  string classFirst = 5;
+  string classSec = 6;
+}
+
+message SummaryStatsRequest {
+  DataFrame df = 1;
+  int32 id = 2;
+  int32 numThreads = 3;
+  string colName = 4;
+}
+
+message Top10CidadesRequest {
+  DataFrame df = 1;
+  int32 id = 2;
+  int32 numThreads = 3;
+  string colName = 4;
+}
+
+message AbnormalTransactionsRequest {
+  DataFrame dfTransac = 1;
+  DataFrame dfAccount = 2;
+  int32 id = 3;
+  int32 numThreads = 4;
+  string transactionIDCol = 5;
+  string amountCol = 6;
+  string locationColTransac = 7;
+  string accountColTransac = 8;
+  string accountColAccount = 9;
+  string locationColAccount = 10;
+}
+
+
+///// Novas funções /////
+
+
+// Respostas numéricas
+message OperationResponse {
+  string result = 1;
+}
+
+message AddTransactionRequest {
+  int32 transaction_id = 1;
+  int32 from_account_id = 2;
+  int32 to_account_id = 3;
+  float amount = 4;
+  string location = 5;
+}
+
+message AddAccountRequest {
+  int32 account_id = 1;
+  string owner = 2;
+  string location = 3;
+}
