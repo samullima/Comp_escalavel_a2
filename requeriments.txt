@@ -1,4 +1,0 @@
-Faker
-streamlit 
-matplotlib
-seaborn
