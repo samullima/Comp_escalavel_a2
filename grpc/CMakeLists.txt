@@ -20,5 +20,5 @@ add_executable(server server.cc)
 target_link_libraries(server protolib)
 
 include_directories(SYSTEM ../include)
-add_library(dataframes ../src/df.cpp ../src/csv_extractor.cpp)
+add_library(dataframes ../src/df.cpp ../src/csv_extractor.cpp ../src/tratadores.cpp)
 target_link_libraries(server dataframes)

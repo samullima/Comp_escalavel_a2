@@ -4,10 +4,11 @@ syntax = "proto3";
 
 message Summary {
   float mean = 1;
-  float std = 2;
-  float min = 3;
-  float max = 4;
+  float min = 2;
+  float max = 3;
+  float q1 = 4;
   float median = 5;
+  float q3 = 6;
 }
 message Transaction {
   int32 idSender = 1;

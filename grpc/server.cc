@@ -7,7 +7,9 @@
 #include "proto/dataframe.pb.h"
 #include "df.h"
 #include "csv_extractor.h"
+#include "tratadores.h"
 
+ThreadPool* mainPool;
 DataFrame* TransactionsDF;
 
 /*
@@ -63,6 +65,22 @@ class ProcessingImpl : public ProcessingServices::Service {
     }
     ::grpc::Status transactionsInfo(::grpc::ServerContext* context, const GenericInput* request, Summary* response) override {
         // Handle the transactionsInfo request
+        int numThreads = std::thread::hardware_concurrency();
+        DataFrame summary = summaryStats(*TransactionsDF, 1, numThreads, "amount", *mainPool);
+        cout << "Summary: " << endl;
+        summary.printDF();
+        float min = std::get<float>(summary.getRecord(0)[1]);
+        float q1 = std::get<float>(summary.getRecord(1)[1]);
+        float median = std::get<float>(summary.getRecord(2)[1]);
+        float q3 = std::get<float>(summary.getRecord(3)[1]);
+        float max = std::get<float>(summary.getRecord(4)[1]);
+        float mean = std::get<float>(summary.getRecord(5)[1]);
+        response->set_min(min);
+        response->set_q1(q1);
+        response->set_median(median);
+        response->set_q3(q3);
+        response->set_max(max);
+        response->set_mean(mean);
         return ::grpc::Status::OK;
     }
 };
@@ -73,6 +91,7 @@ int main(int argc, char** argv) {
     vector<string> accountsColTypes = {"int", "int", "float", "string", "string", "string", "string"};
     vector<string> customersColTypes = {"int", "string", "string", "string", "string"};
 
+    mainPool = new ThreadPool(MAX_THREADS);
     TransactionsDF = readCSV("../../data/transactions/transactions.csv", MAX_THREADS, transactionsColTypes);
 
     ProcessingImpl service;
