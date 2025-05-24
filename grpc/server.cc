@@ -3,7 +3,7 @@
 #include <thread>
 #include <grpcpp/grpcpp.h>
 #include <chrono>
-
+#include <iomanip>
 #include "proto/dataframe.grpc.pb.h"
 #include "proto/dataframe.pb.h"
 #include "df.h"
@@ -15,8 +15,8 @@ DataFrame* TransactionsDF;
 vector<float> amounts;
 int NUM_RECORDS = 0;
 float SUM_AMOUNTS = 0.0;
-DataFrame* Classificador;
-DataFrame* CountClasses;
+DataFrame Classificador;
+DataFrame CountClasses;
 
 
 /*
@@ -125,29 +125,33 @@ class ProcessingImpl : public ProcessingServices::Service {
         auto idCol = Classificador.getColumn(accountIdx);
         auto classCol = Classificador.getColumn(classIdx);
         string classe;
-        for (i=0; i<n; i++){
-            if (idCol[i] == ID) {
-                classe = classCol[i];
+        for (int i=0; i<n; i++){
+            int index = get<int>(idCol[i]);
+            if (index == ID) {
+                string classeCorresp = get<string>(classCol[i]);
+                classe = classeCorresp;
             }
         }
-        response->set_class(classe);
+        response->set_classname(classe);
         
         return ::grpc::Status::OK;
     }
     ::grpc::Status accountByClass(::grpc::ServerContext* context, const ::Class* request, ::NumberOfAccounts* response) {
-        string classe = request->class();
+        string classe = request->classname();
         int n = CountClasses.getNumRecords();
         int contadorIdx = CountClasses.getColumnIndex("count");
         int classIdx = CountClasses.getColumnIndex("categoria");
         auto contadorCol = CountClasses.getColumn(contadorIdx);
         auto classCol = CountClasses.getColumn(classIdx);
         int numClasses;
-        for (i=0; i<n; i++){
-            if (classCol[i] == classe) {
-                numClasses = contadorCol[i];
+        for (int i=0; i<n; i++){
+            string classedf = get<string>(classCol[i]);
+            if (classedf == classe) {
+                int contador = get<int>(contadorCol[i]);
+                numClasses = contador;
             }
         }
-        response->set_class(numClasses);
+        response->set_sum(numClasses);
         
         return ::grpc::Status::OK;
     }
@@ -161,11 +165,11 @@ int main(int argc, char** argv) {
 
     mainPool = new ThreadPool(MAX_THREADS);
     TransactionsDF = readCSV("../../data/transactions/transactions.csv", MAX_THREADS, transactionsColTypes);
-    AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
-    MediasTrans = groupby_mean(*TransactionsDF, 5, MAX_THREADS, "account_id", "amount", mainPool);
-    joined = join_by_key(MediasTrans, *AccountsDF, 6, MAX_THREADS, "account_id", mainPool);
-    Classificador = classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", mainPool);
-    CountClasses = count_values(Classificador, 10, MAX_THREADS, "categoria", 0, mainPool);
+    DataFrame* AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
+    DataFrame MediasTrans = groupby_mean(*TransactionsDF, 5, MAX_THREADS, "account_id", "amount", *mainPool);
+    DataFrame joined = join_by_key(MediasTrans, *AccountsDF, 6, MAX_THREADS, "account_id", *mainPool);
+    Classificador = classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", *mainPool);
+    CountClasses = count_values(Classificador, 10, MAX_THREADS, "categoria", 0, *mainPool);
 
     auto column = TransactionsDF->getColumn(3); 
     amounts.clear();
