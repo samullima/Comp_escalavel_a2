@@ -20,6 +20,7 @@ using ElementType = std::variant<int, float, bool, std::string>;
 ThreadPool* mainPool;
 DataFrame* TransactionsDF;
 DataFrame* AccountsDF;
+DataFrame* AbnormalDF;
 vector<float> amounts;
 int NUM_RECORDS = 0;
 float SUM_AMOUNTS = 0.0;
@@ -143,8 +144,7 @@ class ProcessingImpl : public ProcessingServices::Service {
 
         cout << "sending abnormal transactions" << std::endl;
         int numThreads = std::thread::hardware_concurrency();
-        DataFrame abnormal = abnormal_transactions(*TransactionsDF, *AccountsDF, 2, numThreads, "transation_id", "amount", "location", "account_id", "account_id", "account_location", *mainPool);
-        std::vector<ElementType> vectorAbnormal = abnormal.getColumn(0);
+        std::vector<ElementType> vectorAbnormal = AbnormalDF->getColumn(0);
 
         // Converter e adicionar ao response
         for (const auto& elem : vectorAbnormal) {
@@ -208,6 +208,7 @@ int main(int argc, char** argv) {
     DataFrame joined = join_by_key(MediasTrans, *AccountsDF, 6, MAX_THREADS, "account_id", *mainPool);
     Classificador = new DataFrame(classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", *mainPool));
     CountClasses = new DataFrame(count_values(*Classificador, 10, MAX_THREADS, "categoria", 0, *mainPool));
+    AbnormalDF = new DataFrame(abnormal_transactions(*TransactionsDF, *AccountsDF, 2, MAX_THREADS, "transation_id", "amount", "location", "account_id", "account_id", "account_location", *mainPool));
 
     auto column = TransactionsDF->getColumn(3); 
     amounts.clear();
