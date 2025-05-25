@@ -187,7 +187,7 @@ class ProcessingImpl : public ProcessingServices::Service {
         int classIdx = CountClasses->getColumnIndex("categoria");
         auto contadorCol = CountClasses->getColumn(contadorIdx);
         auto classCol = CountClasses->getColumn(classIdx);
-        int numClasses;
+        int numClasses = 0;
         for (int i=0; i<n; i++){
             string classedf = get<string>(classCol[i]);
             if (classedf == classe) {
