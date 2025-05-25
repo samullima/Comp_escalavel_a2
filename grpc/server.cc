@@ -168,8 +168,8 @@ int main(int argc, char** argv) {
     DataFrame* AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
     DataFrame MediasTrans = groupby_mean(*TransactionsDF, 5, MAX_THREADS, "account_id", "amount", *mainPool);
     DataFrame joined = join_by_key(MediasTrans, *AccountsDF, 6, MAX_THREADS, "account_id", *mainPool);
-    *Classificador = classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", *mainPool);
-    *CountClasses = count_values(*Classificador, 10, MAX_THREADS, "categoria", 0, *mainPool);
+    Classificador = new DataFrame(classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", *mainPool));
+    CountClasses = new DataFrame(count_values(*Classificador, 10, MAX_THREADS, "categoria", 0, *mainPool));
 
     auto column = TransactionsDF->getColumn(3); 
     amounts.clear();
