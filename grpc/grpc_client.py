@@ -18,23 +18,35 @@ class GRPCClient:
             amount=amount,
             location=location
         )
-        self.stub.AddTransaction(req)
+        self.stub.addTransaction(req)
 
     def transactions_info(self) -> Summary:
         req = GenericInput()
-        return self.stub.TransactionsInfo(req)
+        return self.stub.transactionsInfo(req)
 
     def abnormal_transactions(self) -> list[int]:
         req = GenericInput()
-        response: Abnormal = self.stub.AbnormalTransactions(req)
+        response: Abnormal = self.stub.abnormalTransactions(req)
         return list(response.vectorAbnormal)
 
     def account_class(self, id_account: int) -> str:
         req = AccountId(idAccount=id_account)
-        response: Class = self.stub.AccountClass(req)
+        response: Class = self.stub.accountClass(req)
         return response.className
 
     def account_by_class(self, class_name: str) -> int:
         req = Class(className=class_name)
-        response: NumberOfAccounts = self.stub.AccountByClass(req)
+        response: NumberOfAccounts = self.stub.accountByClass(req)
         return response.sum
+    
+
+if __name__ == "__main__":
+    client = GRPCClient()
+    # Example usage
+    client.add_transaction(1, 2, 100.0, "New York")
+    summary = client.transactions_info()
+    print(f"Summary: {summary}")
+    abnormal_ids = client.abnormal_transactions()
+    print(f"Abnormal Transaction IDs: {abnormal_ids}")
+    account_class = client.account_class(1)
+    print(f"Account Class: {account_class}")
