@@ -2,3 +2,6 @@ Faker
 streamlit 
 matplotlib
 seaborn
+grpcio
+grpcio-tools
+dotenv
