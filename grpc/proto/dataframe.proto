@@ -16,6 +16,9 @@ message Transaction {
   float amount = 3;
   string location = 4;
 }
+message Abnormal {
+  repeated int32 vectorAbnormal = 1;
+}
 
 message GenericInput{}
 message GenericResponse{}
@@ -33,6 +36,7 @@ message NumberOfAccounts{
 service ProcessingServices{
   rpc addTransaction(Transaction) returns (GenericResponse);
   rpc transactionsInfo(GenericInput) returns (Summary);
+  rpc abnormalTransactions(GenericInput) returns (Abnormal);
   rpc accountClass(AccountId) returns (Class);
   rpc accountByClass(Class) returns (NumberOfAccounts);
 }

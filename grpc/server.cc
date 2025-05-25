@@ -9,9 +9,17 @@
 #include "df.h"
 #include "csv_extractor.h"
 #include "tratadores.h"
+#include <iomanip>
+#include <vector>
+#include <variant>
+#include <string>
+#include <type_traits>
+
+using ElementType = std::variant<int, float, bool, std::string>;
 
 ThreadPool* mainPool;
 DataFrame* TransactionsDF;
+DataFrame* AccountsDF;
 vector<float> amounts;
 int NUM_RECORDS = 0;
 float SUM_AMOUNTS = 0.0;
@@ -44,6 +52,29 @@ std::string getCurrentTime(){
     return oss.str();
 
     return 0;
+}
+// Versão mais limpa usando ElementType
+int convertToInt(const std::variant<int, float, bool, std::string>& elem) {
+    return std::visit([](const auto& value) -> int {
+        using T = std::decay_t<decltype(value)>;
+        
+        if constexpr (std::is_same_v<T, int>) {
+            return static_cast<int>(value);
+        }
+        else if constexpr (std::is_same_v<T, float>) {
+            return static_cast<int>(value); // Converte float para int
+        }
+        else if constexpr (std::is_same_v<T, bool>) {
+            return value ? 1 : 0; // Converte bool para 0 ou 1
+        }
+        else if constexpr (std::is_same_v<T, std::string>) {
+            try {
+                return std::stoi(value); // Tenta converter string para int
+            } catch (...) {
+                return 0; // Valor padrão se a conversão falhar
+            }
+        }
+    }, elem);
 }
 
 
@@ -117,6 +148,19 @@ class ProcessingImpl : public ProcessingServices::Service {
         response->set_mean(mean);
         return ::grpc::Status::OK;
     }
+    ::grpc::Status abnormalTransactions(::grpc::ServerContext* context, const GenericInput* request, Abnormal* response) override {
+        int numThreads = std::thread::hardware_concurrency();
+        DataFrame abnormal = abnormal_transactions(*TransactionsDF, *AccountsDF, 2, numThreads, "transation_id", "amount", "location", "account_id", "account_id", "account_location", *mainPool);
+        std::cout << "Abnormal: " << std::endl;
+        std::vector<ElementType> vectorAbnormal = abnormal.getColumn(0);
+
+        // Converter e adicionar ao response
+        for (const auto& elem : vectorAbnormal) {
+            response->add_vectorabnormal(convertToInt(elem));
+        }
+
+        return ::grpc::Status::OK;
+    }
     ::grpc::Status accountClass(::grpc::ServerContext* context, const ::AccountId* request, ::Class* response) {
         int ID = request->idaccount();
         int n = Classificador->getNumRecords();
@@ -165,7 +209,7 @@ int main(int argc, char** argv) {
 
     mainPool = new ThreadPool(MAX_THREADS);
     TransactionsDF = readCSV("../../data/transactions/transactions.csv", MAX_THREADS, transactionsColTypes);
-    DataFrame* AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
+    AccountsDF = readCSV("../../data/accounts/accounts.csv", MAX_THREADS, accountsColTypes);
     DataFrame MediasTrans = groupby_mean(*TransactionsDF, 5, MAX_THREADS, "account_id", "amount", *mainPool);
     DataFrame joined = join_by_key(MediasTrans, *AccountsDF, 6, MAX_THREADS, "account_id", *mainPool);
     Classificador = new DataFrame(classify_accounts_parallel(joined, 7, MAX_THREADS, "B_customer_id", "A_mean_amount", "B_current_balance", *mainPool));
