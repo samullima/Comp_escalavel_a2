@@ -1,16 +1,4 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from grpc_client import GRPCClient
-
-client = GRPCClient()
-def test_account_class():
-    id_account = 12345  # Example account ID
-    account_class = client.account_class(id_account)
-    
-    # Check if the account class is a string
-    assert isinstance(account_class, str)
+from client_tests_lib import test_account_class
 
 if __name__ == "__main__":
     while True:

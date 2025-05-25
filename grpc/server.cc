@@ -81,6 +81,7 @@ int convertToInt(const std::variant<int, float, bool, std::string>& elem) {
 class ProcessingImpl : public ProcessingServices::Service {
     // Implement your service methods here
     ::grpc::Status addTransaction(::grpc::ServerContext* context, const ::Transaction* request, ::GenericResponse* response) {
+        
         auto pos = std::lower_bound(amounts.begin(), amounts.end(), request->amount());
         amounts.insert(pos, request->amount());
 
@@ -89,6 +90,7 @@ class ProcessingImpl : public ProcessingServices::Service {
 
         // Handle the addTransaction request
         int newID = TransactionsDF->getNumRecords()+1;
+        cout << "adding transaction with ID: " << newID << std::endl;
         int senderID = request->idsender();
         int receiverID = request->idreceiver();
         float amount = request->amount();
@@ -102,13 +104,11 @@ class ProcessingImpl : public ProcessingServices::Service {
         vector<string> record = {std::to_string(newID), std::to_string(senderID), std::to_string(receiverID), std::to_string(amount), type, location, time_start, time_end, date};
         TransactionsDF->addRecord(record);
 
-        std::cout << "Transaction added: " << newID << std::endl;
-        std::cout << "location: " << location << std::endl;
-
         return ::grpc::Status::OK;
     }
     ::grpc::Status transactionsInfo(::grpc::ServerContext* context, const GenericInput* request, Summary* response) override {
         // Handle the transactionsInfo request
+        cout << "sending transactions info" << std::endl;
 
         float medianValue;
         int q1Index, q3Index;
@@ -131,15 +131,6 @@ class ProcessingImpl : public ProcessingServices::Service {
         float max = amounts[amounts.size() - 1];
         float mean = SUM_AMOUNTS / NUM_RECORDS;
 
-        cout << "Transactions Info:" << std::endl;
-        cout << "------------------------" << endl;
-        cout << "Min: " << min << std::endl;
-        cout << "Q1: " << q1 << std::endl;
-        cout << "Median: " << median << std::endl;
-        cout << "Q3: " << q3 << std::endl;
-        cout << "Max: " << max << std::endl;
-        cout << "Mean: " << mean << std::endl;
-
         response->set_min(min);
         response->set_q1(q1);
         response->set_median(median);
@@ -149,9 +140,10 @@ class ProcessingImpl : public ProcessingServices::Service {
         return ::grpc::Status::OK;
     }
     ::grpc::Status abnormalTransactions(::grpc::ServerContext* context, const GenericInput* request, Abnormal* response) override {
+
+        cout << "sending abnormal transactions" << std::endl;
         int numThreads = std::thread::hardware_concurrency();
         DataFrame abnormal = abnormal_transactions(*TransactionsDF, *AccountsDF, 2, numThreads, "transation_id", "amount", "location", "account_id", "account_id", "account_location", *mainPool);
-        std::cout << "Abnormal: " << std::endl;
         std::vector<ElementType> vectorAbnormal = abnormal.getColumn(0);
 
         // Converter e adicionar ao response
@@ -162,6 +154,7 @@ class ProcessingImpl : public ProcessingServices::Service {
         return ::grpc::Status::OK;
     }
     ::grpc::Status accountClass(::grpc::ServerContext* context, const ::AccountId* request, ::Class* response) {
+        cout << "sending account class" << std::endl;
         int ID = request->idaccount();
         int n = Classificador->getNumRecords();
         int accountIdx = Classificador->getColumnIndex("account_id");
@@ -181,6 +174,7 @@ class ProcessingImpl : public ProcessingServices::Service {
         return ::grpc::Status::OK;
     }
     ::grpc::Status accountByClass(::grpc::ServerContext* context, const ::Class* request, ::NumberOfAccounts* response) {
+        cout << "sending account by class" << std::endl;
         string classe = request->classname();
         int n = CountClasses->getNumRecords();
         int contadorIdx = CountClasses->getColumnIndex("count");

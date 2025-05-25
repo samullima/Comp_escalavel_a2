@@ -1,16 +1,4 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from grpc_client import GRPCClient
-from random import randint
-
-client = GRPCClient()
-def test_account_by_class():
-    account_classes = ["A", "B", "C"]
-    account_class = account_classes[randint(0, len(account_classes) - 1)]
-    count = client.account_by_class(account_class)
-
+from client_tests_lib import test_account_by_class
 
 if __name__ == "__main__":
     while True:
