@@ -1,9 +1,9 @@
 import grpc
-from processing_pb2 import (
+from dataframe_pb2 import (
     Transaction, GenericInput, Summary, Abnormal,
     AccountId, Class, NumberOfAccounts
 )
-from processing_pb2_grpc import ProcessingServicesStub
+from dataframe_pb2_grpc import ProcessingServicesStub
 
 
 class GRPCClient:
