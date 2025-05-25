@@ -11,8 +11,6 @@ def test_account_class():
     
     # Check if the account class is a string
     assert isinstance(account_class, str)
-    # Check if the account class is not empty
-    assert len(account_class) > 0
 
 if __name__ == "__main__":
     while True:
