@@ -1,6 +1,4 @@
 import grpc
-from typing import Any
-from google.protobuf.empty_pb2 import Empty
 from processing_pb2 import (
     Transaction, GenericInput, Summary, Abnormal,
     AccountId, Class, NumberOfAccounts
