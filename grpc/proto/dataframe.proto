@@ -23,8 +23,20 @@ message Abnormal {
 message GenericInput{}
 message GenericResponse{}
 
+message AccountId{
+  int32 idAccount = 1;
+}
+message Class{
+  string className = 1;
+}
+message NumberOfAccounts{
+  int32 sum = 1;
+}
+
 service ProcessingServices{
   rpc addTransaction(Transaction) returns (GenericResponse);
   rpc transactionsInfo(GenericInput) returns (Summary);
   rpc abnormalTransactions(GenericInput) returns (Abnormal);
+  rpc accountClass(AccountId) returns (Class);
+  rpc accountByClass(Class) returns (NumberOfAccounts);
 }
