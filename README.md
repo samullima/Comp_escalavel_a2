@@ -2,7 +2,7 @@ Este é um fork do nosso trabalho recente de graduação para a matéria de Comp
 
 # Rodando o projeto com gRPC
 
-Para rodar esse projeto, você precisará instalar o gRPC e os "Protocol Buffers" para c++ (https://grpc.io/docs/languages/cpp/quickstart/) e para python (https://grpc.io/docs/languages/python/quickstart/). Observação: é comum o processo apresentado na página de quickstart do c++ resultar em diversos erros em sistemas operacionais Windows. Portanto, para executar o projeto no Windows sem trocar de sistema operacional, recomenda-se o uso do WSL.
+Para rodar esse projeto, você precisará instalar o gRPC e os "Protocol Buffers" para C++ (https://grpc.io/docs/languages/cpp/quickstart/) e para python (https://grpc.io/docs/languages/python/quickstart/). **Observação**: é comum o processo apresentado na página de quickstart do C++ resultar em diversos erros em sistemas operacionais Windows. Portanto, para executar o projeto no Windows sem trocar de sistema operacional, recomenda-se o uso do WSL.
 
 A parte do projeto que lida com o gRPC, como o servidor, os clientes e o proto, estão no diretório `grpc/`, dentro desse repositório. Portanto, todos os passos irão presumir que o diretório de trabalho atual seja ele (o usuário deverá estar dentro do diretório).
 
