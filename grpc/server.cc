@@ -54,25 +54,35 @@ std::string getCurrentTime(){
 
     return 0;
 }
-// Versão mais limpa usando ElementType
 int convertToInt(const std::variant<int, float, bool, std::string>& elem) {
+    /*
+    Esta função converte um valor armazenado em um std::variant (que pode ser int, float, bool ou string)
+    para um valor inteiro, realizando as conversões apropriadas para cada tipo.
+    */
+
     return std::visit([](const auto& value) -> int {
+        // Obtém o tipo real do valor armazenado
         using T = std::decay_t<decltype(value)>;
         
         if constexpr (std::is_same_v<T, int>) {
+            // Se for int, apenas faz cast estático
             return static_cast<int>(value);
         }
         else if constexpr (std::is_same_v<T, float>) {
-            return static_cast<int>(value); // Converte float para int
+            // Converte float para int
+            return static_cast<int>(value); 
         }
         else if constexpr (std::is_same_v<T, bool>) {
-            return value ? 1 : 0; // Converte bool para 0 ou 1
+            // Converte bool para 0 ou 1
+            return value ? 1 : 0; 
         }
         else if constexpr (std::is_same_v<T, std::string>) {
             try {
-                return std::stoi(value); // Tenta converter string para int
+                // Tenta converter string para int
+                return std::stoi(value); 
             } catch (...) {
-                return 0; // Valor padrão se a conversão falhar
+                // Valor padrão se a conversão falhar
+                return 0; 
             }
         }
     }, elem);
@@ -141,12 +151,21 @@ class ProcessingImpl : public ProcessingServices::Service {
         return ::grpc::Status::OK;
     }
     ::grpc::Status abnormalTransactions(::grpc::ServerContext* context, const GenericInput* request, Abnormal* response) override {
+        /* 
+        Esta função é chamada quando um cliente solicita a lista de transações anormais.
+        Ela recupera os dados da coluna de transações anormais de um DataFrame, converte
+        para o formato adequado (int) e envia como resposta ao cliente.
+        */
 
         cout << "sending abnormal transactions" << std::endl;
+
+        // Obtém o número de threads disponíveis
         int numThreads = std::thread::hardware_concurrency();
+
+        // Obtém a coluna dos IDs anormais do DataFrame
         std::vector<ElementType> vectorAbnormal = AbnormalDF->getColumn(0);
 
-        // Converter e adicionar ao response
+        // Converte e adiciona ao response
         for (const auto& elem : vectorAbnormal) {
             response->add_vectorabnormal(convertToInt(elem));
         }
