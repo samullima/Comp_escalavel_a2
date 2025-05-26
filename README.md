@@ -1,75 +1,42 @@
-# Computação Escalável: A1
+Este é um fork do nosso trabalho recente de graduação para a matéria de Computação Escalável, que pode ser encontrado aqui: https://github.com/AlessandraBello/Comp_escalavel_a1
 
-O presente trabalho implementa um micro-framework de extração, carregamente e processamento de dados bancários. A ideia principal é, além das funcionalidades básicas relacionadas às etapas mencionadas, adicionar também funções que nos forneçam informações relevantes sobre os clientes e as transações do banco. Para isso, paralelizamos praticamente todo o projeto usando uma _thread pool_.
+# Rodando o projeto com gRPC
 
-# Instruções para execução do projeto
+Para rodar esse projeto, você precisará instalar o gRPC e os "Protocol Buffers" para c++ (https://grpc.io/docs/languages/cpp/quickstart/) e para python (https://grpc.io/docs/languages/python/quickstart/). Observação: é comum o processo apresentado na página de quickstart do c++ resultar em diversos erros em sistemas operacionais Windows. Portanto, para executar o projeto no Windows sem trocar de sistema operacional, recomenda-se o uso do WSL.
 
-## Pré-requisitos
+A parte do projeto que lida com o gRPC, como o servidor, os clientes e o proto, estão no diretório `grpc/`, dentro desse repositório. Portanto, todos os passos irão presumir que o diretório de trabalho atual seja ele (o usuário deverá estar dentro do diretório).
 
-Para executar o projeto, é necessário ter instalado Python, C e C++. Além disso, é necessário instalar as bibliotecas listadas no arquivo `requirements.txt`. Para isso, execute o seguinte comando:
+## Compilando o servidor
 
-```bash
-$ pip install -r requirements.txt
+1. Crie um diretório `build/`;
+2. Entre no diretório criado;
+3. Chame o comando `$ cmake ..`
+4. Chame o comando `$ make`
+
+Resumo:
+
+```sh
+mkdir build
+cd build/
+cmake ..
+make
 ```
 
-Para conseguir rodar o SQLite, execute
+No fim, o arquivo binário `server` terá sido gerado na pasta `build/`. Ele é um executável, e inicializará o servidor na porta 9999.
 
-```bash
-$ gcc -c include/sqlite3.c
-```
+# Como rodar os testes de carga
 
-## Estrutura 
+Presumindo novamente que o diretório de trabalho seja o `grpc/`:
 
-* `data/`: contém os dados a serem extraídos para construção dos dataframes;
-* `include/`: contém os _headers_ dos arquivos em `src/`, além do template para o thread pool e o código fonte do SQLite;
-* `output/`: onde os dataframes resultantes do driver code são postos;
-* `tests/`: contém dois arquivos de testes para os extratores de CSV e de SQLite;
-* `src/`: contém as implementações dos tratadores, extratores e estrutura do dataframe, além de um arquivo que gera dados bancários sintéticos para analisarmos;
-* `main.cpp`: driver code do projeto, mostra o funcionamento de alguns tratadores;
-* `home.py`: arquivo que gera o dashboard com os resultados.
+1. Baixe as dependências: `$ pip install -r requirements.txt`
+2. Abra o servidor. Se o servidor foi compilado na pasta build, ele será o arquivo `build/server`
+3. Crie um arquivo `.env` e dentro dele defina a variável `GRPC_SERVER=[endereço_do_servidor]`. 
+    - Por exemplo, se você não fez nenhuma modificação no endereço em `server.cc`, para executar localmente, a variável será `GRPC_SERVER=localhost:9999`.
+4. Para cada função, há um arquivo python diferente para fazer o teste de carga, que vai fazer a requisição repetidamente. Todos eles estão na pasta `test/`. Se quiser testar a adição de várias transações, por exemplo, execute `python ./test/client_addTransaction.py`
 
-## Execução
+Cada script python que faz o teste de carga tem um parâmetro de inicialização opcional "1", que registra o tempo que as requisições nos primeiros 2 minutos levam para serem respondidas, e guarda esses valores em um csv na pasta `grpc/data/`. 
 
-Para rodar as demos em `main.cpp`, execute
-
-```bash
-$ g++ -std=c++17 -Iinclude main.cpp src/csv_extractor.cpp src/df.cpp src/tratadores.cpp -o main.exe
-```
-
-E em seguida
-
-```bash
-$ ./main.exe
-```
-
-Para visualizar o dashboard, execute
-
-```bash
-$ streamlit run home.py 
-```
-
-### Adicional: demos dos extratores
-
-Na pasta `tests/`, há dois arquivos que reportam algumas métricas de performance dos extratores SQLite e CSV. Para rodar os testes SQLite, execute 
-
-```bash
-$ g++ -std=c++17 -Iinclude tests/db_test.cpp src/sql_extractor.cpp src/df.cpp src/tratadores.cpp -o sqlite_test.exe sqlite3.o
-```
-
-seguido de 
-
-```bash
-$ ./sqlite_test.exe
-```
-
-Da mesma forma, para rodar os testes CSV, execute
-
-```bash
-$ g++ -std=c++17 -Iinclude tests/csv_test.cpp src/csv_extractor.cpp src/df.cpp src/tratadores.cpp -o csv_test.exe
-```
-
-seguido de 
-
-```bash
-$ ./csv_test.exe
+Para executar o script com a intenção de registrar os tempos de execução, rode (exemplo para addTransaction):
+```sh
+$ python ./test/client_addTransaction.py 1
 ```
